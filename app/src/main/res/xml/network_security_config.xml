@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dashboard is plain HTTP on the TV's LAN address, which is any private
+     address or local name; a domain-config cannot list those, so cleartext is
+     allowed everywhere. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

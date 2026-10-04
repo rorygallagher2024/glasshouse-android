@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The G-and-roof from docs/logo/glasshouse.svg, in its own 512 units: the
+     stroke spans 114-396, inside the adaptive icon's safe zone (100-412). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:pathData="M358,214 L256,134 L154,214 V342 A34,34 0 0,0 188,376 H324 A34,34 0 0,0 358,342 V286 H272"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="40"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

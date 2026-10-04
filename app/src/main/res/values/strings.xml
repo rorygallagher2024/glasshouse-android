@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glasshouse</string>
+
+    <string name="tvs_empty">No TVs yet.\n\nOn the TV, open the Glasshouse dashboard and scan any of its QR codes, or add the TV by its address.</string>
+    <string name="tv_add">Add a TV</string>
+    <string name="tv_add_scan">Scan the TV\'s QR code</string>
+    <string name="tv_add_manual">Enter the address</string>
+    <string name="tv_edit">Edit</string>
+    <string name="tv_remove">Remove</string>
+    <string name="tv_remove_confirm">Remove %1$s from this phone? The TV itself is not changed.</string>
+    <string name="tv_more">More options for %1$s</string>
+    <string name="tv_name">Name</string>
+    <string name="tv_address">Address</string>
+    <string name="tv_address_help">For example 192.168.1.20 or 192.168.1.20:8080</string>
+    <string name="tv_address_bad">Not an address the dashboard can be at</string>
+    <string name="tv_token">Token, if the TV has one</string>
+    <string name="tv_default_name">TV at %1$s</string>
+    <string name="tv_updated">%1$s updated</string>
+    <string name="scan_prompt">Scan a QR code on the TV\'s Glasshouse dashboard</string>
+    <string name="scan_not_tv">That code is not a dashboard address</string>
+
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="dash_reload">Reload</string>
+    <string name="dash_switch">Switch TV</string>
+    <string name="dash_unreachable">Can\'t reach %1$s at %2$s.\n\nThe TV may be off, or on another network.</string>
+    <string name="dash_retry">Try again</string>
+    <string name="dash_no_app">No app on this phone can open that link</string>
+</resources>
