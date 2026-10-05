@@ -32,10 +32,19 @@ codes are links to the web dashboard and carry `k=<token>` when one is set.
 Scanning a TV already in the list updates its token. A TV can also be added by
 address; a bare host gets the server's default port, 8080.
 
+A third way, Find TVs on this network, lists the Glasshouse TVs that answer
+and are not in the list yet, named as the TV names itself. It sends an SSDP
+search, which LG TVs answer naming webOS, and asks every address on the
+phone's subnet (its /24 at most) too, for a TV that does not answer SSDP. A TV
+with a token set answers "bad or missing token", which still identifies it;
+the saved tokens are tried on it, and failing those its QR code supplies one.
+
 Once a TV answers, the app keeps the MAC address it reports in `/api/stats`.
-A TV that has moved to a new address is recognised by it: scanning its QR code
-again, or adding it by the new address, updates the entry already in the list.
-A fixed address for the TV on the router avoids the move altogether.
+A TV that has moved to a new address is recognised by it. While a saved TV
+with a known MAC is offline, the app runs the SSDP search at most every two
+minutes, and a TV whose MAC matches takes its new address, keeping its name
+and token. Scanning its QR code again, or adding it by the new address, does
+the same. A fixed address for the TV on the router avoids the move altogether.
 
 The list, tokens included, stays in the app's private storage and is left out
 of Android backups and phone-to-phone transfers.
