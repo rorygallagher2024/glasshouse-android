@@ -11,6 +11,10 @@
     <color name="fg60">#99000000</color>
     <color name="edge">#73000000</color>
     <color name="fg12">#1F000000</color>
+    <color name="fg16">#29000000</color>
+    <color name="fg30">#4D000000</color>
+    <color name="fg50">#80000000</color>
+    <color name="green_edge">#80157F37</color>
     <color name="red">#D42020</color>
     <color name="green">#157F37</color>
 

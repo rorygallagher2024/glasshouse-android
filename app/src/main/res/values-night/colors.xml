@@ -8,6 +8,10 @@
     <color name="fg60">#99FFFFFF</color>
     <color name="edge">#66FFFFFF</color>
     <color name="fg12">#1FFFFFFF</color>
+    <color name="fg16">#29FFFFFF</color>
+    <color name="fg30">#4DFFFFFF</color>
+    <color name="fg50">#80FFFFFF</color>
+    <color name="green_edge">#8030DE61</color>
     <color name="red">#FF3030</color>
     <color name="green">#30DE61</color>
 

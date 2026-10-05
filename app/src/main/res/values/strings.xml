@@ -25,6 +25,7 @@
     <string name="tv_online">Online</string>
     <string name="tv_offline">Offline</string>
     <string name="tv_on">On</string>
+    <string name="tv_count">Televisions · %1$d</string>
     <string name="tv_standby">Standby</string>
     <string name="tv_untrusted">Certificate not trusted</string>
     <string name="tv_turn_on">Turn on</string>

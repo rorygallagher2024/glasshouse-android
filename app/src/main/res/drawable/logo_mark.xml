@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The G-and-roof alone, cropped to its stroke (114-396 of the logo's 512),
+     for the header beside the name. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="284"
+    android:viewportHeight="284"
+    android:tint="?attr/colorOnSurface">
+    <group android:translateX="-114" android:translateY="-114">
+        <path
+            android:pathData="M358,214 L256,134 L154,214 V342 A34,34 0 0,0 188,376 H324 A34,34 0 0,0 358,342 V286 H272"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="40"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
