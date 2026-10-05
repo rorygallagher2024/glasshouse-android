@@ -18,6 +18,8 @@
     <string name="tv_default_name">TV at %1$s</string>
     <string name="tv_online">Online</string>
     <string name="tv_offline">Offline</string>
+    <string name="tv_on">On</string>
+    <string name="tv_standby">Standby</string>
     <string name="tv_untrusted">Certificate not trusted</string>
     <string name="tv_turn_on">Turn on</string>
     <string name="tv_turn_on_named">Turn on %1$s</string>
@@ -39,6 +41,8 @@
     <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network. If its address has changed, scanning its QR code again updates it.</string>
     <string name="dash_untrusted">%1$s at %2$s uses a certificate this phone doesn\'t trust, such as a self-signed one.\n\nUse the TV\'s http:// address instead, or a certificate the phone trusts.</string>
     <string name="dash_waking">Turning on %1$s…</string>
+    <string name="dash_power_on_refused">%1$s didn\'t turn on: %2$s</string>
+    <string name="dash_power_on_no_reply">the TV didn\'t reply</string>
     <string name="dash_wake_failed">%1$s didn\'t turn on.\n\nWaking a TV needs \"Turn on via Wi-Fi\" (\"Mobile TV On\" on older models) switched on in its settings, and the TV in standby rather than unplugged.</string>
     <string name="dash_wake_setting_off">%1$s didn\'t turn on.\n\nIts \"Turn on via Wi-Fi\" setting was off when it was last seen, so it doesn\'t listen for the phone. Switch it on in the TV\'s settings, under General or Connection.</string>
     <string name="dash_lan_denied">Glasshouse doesn\'t have permission to reach devices on the local network. Allow it from the TV list, or in Android\'s settings for the app.</string>

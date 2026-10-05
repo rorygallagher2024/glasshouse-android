@@ -34,12 +34,18 @@ of Android backups and phone-to-phone transfers.
 
 ## Turning a TV on
 
-An offline TV whose MAC is known gets a power button in the list, and a Turn
-on button where its dashboard would be. Both send Wake-on-LAN to the phone's
-subnet broadcast, the all-ones broadcast and the TV's last address, every five
-seconds for up to a minute, until the server answers. The TV only listens with
-"Turn on via Wi-Fi" ("Mobile TV On" on older models) switched on; the app
-reads that setting while the TV is on and says so when it is off.
+A TV can answer while dark: in Active Standby finishing panel maintenance,
+held there by Always-on, showing Always Ready, or with its screen off. The
+list shows such a TV with the server's name for the state and a ring rather
+than a dot, and a power button; turning it on asks the server's own `powerOn`.
+
+A TV that does not answer is off or in plain standby. If its MAC is known, it
+gets the power button too, and a Turn on button in place of its dashboard.
+Both send Wake-on-LAN to the phone's subnet broadcast, the all-ones broadcast
+and the TV's last address, every five seconds for up to a minute, until the
+server answers. The TV only listens with "Turn on via Wi-Fi" ("Mobile TV On"
+on older models) switched on; the app reads that setting while the TV is on
+and says so when it is off.
 
 ## Local network permission
 

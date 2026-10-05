@@ -113,7 +113,7 @@ class DashboardActivity : AppCompatActivity() {
                 }
             }
         })
-        if (intent.getBooleanExtra(EXTRA_WAKE, false) && tv.mac != null) wake() else load()
+        if (intent.getBooleanExtra(EXTRA_WAKE, false)) wake() else load()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -232,12 +232,12 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Sends Wake-on-LAN and waits for the TV's server to answer, resending
-     * the packet every few seconds in case one is missed. A TV coming out of
-     * standby takes a while to bring its network and the server back.
+     * Turns the TV on, then opens its dashboard. A TV whose server answers is
+     * dark but awake (Active Standby, Always-on, Screen off) and is asked by
+     * its own server; one that does not answer gets Wake-on-LAN, resent every
+     * few seconds in case one is missed, until the server comes back.
      */
     private fun wake() {
-        val mac = tv.mac ?: return load()
         val id = ++loadId
         val target = tv
         val appContext = applicationContext
@@ -245,6 +245,25 @@ class DashboardActivity : AppCompatActivity() {
         showStatus(getString(R.string.dash_waking, target.name), canRetry = false)
         showBusy()
         probes.execute {
+            if (TvProbe.check(target.link) == TvProbe.Reach.ANSWERS) {
+                val refused = TvProbe.powerOn(target.link)
+                main.post {
+                    if (id != loadId || isDestroyed) return@post
+                    if (refused == null) {
+                        load()
+                    } else {
+                        progress.visibility = View.INVISIBLE
+                        val reason = refused.ifEmpty { getString(R.string.dash_power_on_no_reply) }
+                        showStatus(getString(R.string.dash_power_on_refused, target.name, reason), canRetry = true, canWake = true)
+                    }
+                }
+                return@execute
+            }
+            val mac = target.mac
+            if (mac == null) {
+                main.post { if (id == loadId && !isDestroyed) showError() }
+                return@execute
+            }
             val deadline = SystemClock.elapsedRealtime() + WAKE_TIMEOUT_MS
             var nextSend = 0L
             var answered = false

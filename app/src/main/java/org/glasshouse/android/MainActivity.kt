@@ -36,17 +36,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var lanBanner: View
     private var adapter: TvAdapter? = null
 
-    private enum class Reach { CHECKING, ONLINE, OFFLINE, UNTRUSTED_CERT }
+    private enum class Reach { CHECKING, ON, ASLEEP, ONLINE, OFFLINE, UNTRUSTED_CERT }
+
+    /** A TV's state as shown; [label] is the server's name for a dark TV's state. */
+    private data class Shown(val reach: Reach, val label: String? = null)
 
     /**
      * Last probe result by origin, not id, so an edited address starts over
      * as unknown. Read and written on the main thread only.
      */
-    private val reach = mutableMapOf<String, Reach>()
+    private val shown = mutableMapOf<String, Shown>()
     private val inFlight = mutableSetOf<String>()
-
-    /** TVs whose MAC and Wake-on-LAN setting have been read this session. */
-    private val identified = mutableSetOf<String>()
 
     private val probes = Executors.newFixedThreadPool(4)
     private val main = Handler(Looper.getMainLooper())
@@ -149,19 +149,23 @@ class MainActivity : AppCompatActivity() {
             val link = tv.link
             // A probe gives up within 8 seconds, but one stuck in DNS can outlast a round.
             if (!inFlight.add(link.origin)) continue
-            val learn = tv.id !in identified
             probes.execute {
-                val result = TvProbe.check(link)
-                val identity = if (learn && result == TvProbe.Reach.ANSWERS) TvProbe.identify(link) else null
+                val status = TvProbe.status(link)
                 main.post {
                     inFlight.remove(link.origin)
                     if (isDestroyed) return@post
-                    reach[link.origin] = when (result) {
-                        TvProbe.Reach.ANSWERS -> Reach.ONLINE
-                        TvProbe.Reach.NO_ANSWER -> Reach.OFFLINE
-                        TvProbe.Reach.UNTRUSTED_CERT -> Reach.UNTRUSTED_CERT
+                    val power = status.power
+                    shown[link.origin] = when (status.reach) {
+                        // Without stats (a wrong token, say) the power state is unknown.
+                        TvProbe.Reach.ANSWERS -> when {
+                            power == null -> Shown(Reach.ONLINE)
+                            power.on -> Shown(Reach.ON)
+                            else -> Shown(Reach.ASLEEP, power.label)
+                        }
+                        TvProbe.Reach.NO_ANSWER -> Shown(Reach.OFFLINE)
+                        TvProbe.Reach.UNTRUSTED_CERT -> Shown(Reach.UNTRUSTED_CERT)
                     }
-                    if (identity != null) remember(tv.id, identity)
+                    status.identity?.let { remember(tv.id, it) }
                     adapter?.statusChanged(link.origin)
                 }
             }
@@ -170,7 +174,6 @@ class MainActivity : AppCompatActivity() {
 
     /** Stores what a TV said about itself, against the entry it is now. */
     private fun remember(id: String, identity: TvProbe.Identity) {
-        identified += id
         val current = store.get(id) ?: return
         if (current.mac == identity.mac && current.wakeOnLan == identity.wakeOnLan) return
         store.save(current.copy(mac = identity.mac, wakeOnLan = identity.wakeOnLan))
@@ -328,19 +331,23 @@ class MainActivity : AppCompatActivity() {
 
         fun bind(tv: Tv) {
             name.text = tv.name
-            val state = reach[tv.link.origin] ?: Reach.CHECKING
-            val (label, dot) = when (state) {
-                Reach.ONLINE -> R.string.tv_online to R.drawable.dot_online
-                Reach.OFFLINE -> R.string.tv_offline to R.drawable.dot_offline
-                Reach.UNTRUSTED_CERT -> R.string.tv_untrusted to R.drawable.dot_offline
-                Reach.CHECKING -> R.string.tv_checking to R.drawable.dot_checking
+            val state = shown[tv.link.origin] ?: Shown(Reach.CHECKING)
+            val (label, dot) = when (state.reach) {
+                Reach.ON -> getString(R.string.tv_on) to R.drawable.dot_online
+                Reach.ASLEEP -> state.label.orEmpty().ifEmpty { getString(R.string.tv_standby) } to R.drawable.dot_asleep
+                Reach.ONLINE -> getString(R.string.tv_online) to R.drawable.dot_online
+                Reach.OFFLINE -> getString(R.string.tv_offline) to R.drawable.dot_offline
+                Reach.UNTRUSTED_CERT -> getString(R.string.tv_untrusted) to R.drawable.dot_offline
+                Reach.CHECKING -> getString(R.string.tv_checking) to R.drawable.dot_checking
             }
-            address.text = getString(R.string.tv_status_line, getString(label), tv.link.label)
+            address.text = getString(R.string.tv_status_line, label, tv.link.label)
             address.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
             itemView.setOnClickListener { open(tv) }
 
-            // Only a TV whose MAC is known can be woken.
-            power.visibility = if (state == Reach.OFFLINE && tv.mac != null) View.VISIBLE else View.GONE
+            // A dark TV that answers is turned on by its server; one that does
+            // not, by Wake-on-LAN, which needs its MAC.
+            val canTurnOn = state.reach == Reach.ASLEEP || (state.reach == Reach.OFFLINE && tv.mac != null)
+            power.visibility = if (canTurnOn) View.VISIBLE else View.GONE
             power.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
             power.setOnClickListener { open(tv, wake = true) }
 
