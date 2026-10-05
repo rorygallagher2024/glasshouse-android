@@ -50,7 +50,7 @@ jobs:
           GLASSHOUSE_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
           GLASSHOUSE_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
           GLASSHOUSE_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon testReleaseUnitTest lintRelease bundleRelease assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest lintRelease bundleRelease assembleRelease
 
       - name: name the files after the version
         run: |
