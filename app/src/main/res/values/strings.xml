@@ -25,7 +25,8 @@
 
     <string name="dash_reload">Reload</string>
     <string name="dash_switch">Switch TV</string>
-    <string name="dash_unreachable">Can\'t reach %1$s at %2$s.\n\nThe TV may be off, or on another network.</string>
+    <string name="dash_connecting">Connecting to %1$s…</string>
+    <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network.</string>
     <string name="dash_retry">Try again</string>
     <string name="dash_no_app">No app on this phone can open that link</string>
     <string name="intro_lead">The Glasshouse dashboard for LG webOS TVs, on the phone.</string>

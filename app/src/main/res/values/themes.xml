@@ -59,6 +59,8 @@
         <item name="textAppearanceLabelMedium">@style/TextAppearance.Glasshouse.LabelMedium</item>
         <item name="textAppearanceLabelSmall">@style/TextAppearance.Glasshouse.LabelSmall</item>
 
+        <item name="materialButtonStyle">@style/Widget.Glasshouse.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.Glasshouse.Button.Outlined</item>
         <item name="appBarLayoutStyle">@style/Widget.Glasshouse.AppBarLayout</item>
         <item name="extendedFloatingActionButtonStyle">@style/Widget.Glasshouse.ExtendedFab</item>
     </style>
@@ -68,6 +70,17 @@
     <style name="ShapeAppearance.Glasshouse.Square" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">0dp</item>
+    </style>
+
+    <!-- Material 3 buttons are pills (shapeAppearanceCornerFull); the
+         dashboard's are square. -->
+    <style name="Widget.Glasshouse.Button" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/ShapeAppearance.Glasshouse.Square</item>
+    </style>
+    <style name="Widget.Glasshouse.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="shapeAppearance">@style/ShapeAppearance.Glasshouse.Square</item>
+        <item name="strokeColor">@color/edge</item>
+        <item name="android:textColor">@color/fg</item>
     </style>
 
     <!-- The bars stay the page colour: no tint when content scrolls under. -->

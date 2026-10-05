@@ -68,12 +68,11 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/docs"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="52dp"
-            android:text="@string/intro_docs"
-            android:textColor="?attr/colorOnSurface" />
+            android:text="@string/intro_docs" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/start"

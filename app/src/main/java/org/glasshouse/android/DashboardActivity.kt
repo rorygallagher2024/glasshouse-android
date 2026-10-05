@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -25,6 +27,7 @@ import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import java.util.concurrent.Executors
 
 /** One TV's web dashboard, full screen, with a switch to the other saved TVs. */
 class DashboardActivity : AppCompatActivity() {
@@ -37,6 +40,19 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var progress: LinearProgressIndicator
     private lateinit var errorView: View
     private lateinit var errorText: TextView
+    private lateinit var retry: View
+
+    private val probes = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Bumped by every load, so a probe or timeout from an earlier one is ignored. */
+    private var loadId = 0
+
+    /** Gives up on a page that has started but not arrived. */
+    private val loadTimeout = Runnable {
+        web.stopLoading()
+        showError()
+    }
 
     /** The foreground that suits the bars' current colour, for the menu icons. */
     private var barForeground = 0
@@ -72,7 +88,8 @@ class DashboardActivity : AppCompatActivity() {
         progress = findViewById(R.id.progress)
         errorView = findViewById(R.id.error)
         errorText = findViewById(R.id.error_text)
-        findViewById<View>(R.id.retry).setOnClickListener { load() }
+        retry = findViewById(R.id.retry)
+        retry.setOnClickListener { load() }
 
         setUpWebView()
         paintBars(getColor(R.color.bg))
@@ -117,6 +134,8 @@ class DashboardActivity : AppCompatActivity() {
             // Committed is the first moment the page's theme is applied, so
             // the bars change with the first paint rather than after loading.
             override fun onPageCommitVisible(view: WebView, url: String?) {
+                main.removeCallbacks(loadTimeout)
+                showPage()
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
             }
 
@@ -130,7 +149,10 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                if (request.isForMainFrame) showError()
+                if (request.isForMainFrame) {
+                    main.removeCallbacks(loadTimeout)
+                    showError()
+                }
             }
         }
         web.webChromeClient = object : WebChromeClient() {
@@ -162,19 +184,51 @@ class DashboardActivity : AppCompatActivity() {
         return here.origin == tv.link.origin
     }
 
+    /**
+     * Checks the TV answers before handing the WebView its address, so an
+     * offline TV shows as such within seconds instead of as a blank page.
+     */
     private fun load() {
-        supportActionBar?.title = tv.name
-        supportActionBar?.subtitle = tv.link.label
+        val id = ++loadId
+        val target = tv
+        main.removeCallbacks(loadTimeout)
+        supportActionBar?.title = target.name
+        supportActionBar?.subtitle = target.link.label
+        showStatus(getString(R.string.dash_connecting, target.name), canRetry = false)
+        progress.isIndeterminate = true
+        progress.visibility = View.VISIBLE
+        probes.execute {
+            val answers = TvProbe.answers(target.link)
+            main.post {
+                if (id != loadId || isDestroyed) return@post
+                progress.visibility = View.INVISIBLE
+                progress.isIndeterminate = false
+                if (answers) {
+                    web.loadUrl(target.link.dashboardUrl())
+                    main.postDelayed(loadTimeout, PAGE_TIMEOUT_MS)
+                } else {
+                    showError()
+                }
+            }
+        }
+    }
+
+    private fun showPage() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
-        web.loadUrl(tv.link.dashboardUrl())
+    }
+
+    private fun showStatus(text: String, canRetry: Boolean) {
+        paintBars(getColor(R.color.bg))
+        web.visibility = View.INVISIBLE
+        errorText.text = text
+        retry.visibility = if (canRetry) View.VISIBLE else View.GONE
+        errorView.visibility = View.VISIBLE
     }
 
     private fun showError() {
-        paintBars(getColor(R.color.bg))
-        web.visibility = View.INVISIBLE
-        errorText.text = getString(R.string.dash_unreachable, tv.name, tv.link.label)
-        errorView.visibility = View.VISIBLE
+        progress.visibility = View.INVISIBLE
+        showStatus(getString(R.string.dash_unreachable, tv.name, tv.link.label), canRetry = true)
     }
 
     /**
@@ -268,12 +322,17 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(loadTimeout)
+        probes.shutdownNow()
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
 
     companion object {
         const val EXTRA_TV_ID = "tv_id"
+
+        /** For a server that answered the probe but then stalls on the page. */
+        private const val PAGE_TIMEOUT_MS = 15_000L
 
         /**
          * Reports the page's background now and whenever the dashboard's
