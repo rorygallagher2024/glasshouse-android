@@ -28,4 +28,26 @@
     <string name="dash_unreachable">Can\'t reach %1$s at %2$s.\n\nThe TV may be off, or on another network.</string>
     <string name="dash_retry">Try again</string>
     <string name="dash_no_app">No app on this phone can open that link</string>
+    <string name="intro_lead">The Glasshouse dashboard for LG webOS TVs, on the phone.</string>
+    <string name="intro_server_title">Needs Glasshouse on the TV</string>
+    <string name="intro_server">This app connects to the Glasshouse server, which runs on rooted LG webOS TVs. The server has to be installed on the TV first: the app does not install it or root the TV.</string>
+    <string name="intro_add_title">Adding a TV</string>
+    <string name="intro_add">With Glasshouse running, scan any QR code on the TV\'s dashboard, or enter the TV\'s address.</string>
+    <string name="intro_network_title">Same network</string>
+    <string name="intro_network">The phone and the TV need to be on the same network.</string>
+    <string name="intro_docs">Installation guide</string>
+    <string name="intro_start">Get started</string>
+
+    <string name="about">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_summary">A phone app for the Glasshouse dashboard, which runs on rooted LG webOS TVs. It keeps a list of TVs and opens each one\'s dashboard.</string>
+    <string name="about_source_app">Source code for this app</string>
+    <string name="about_source_server">Glasshouse server and dashboard</string>
+    <string name="about_docs">Documentation</string>
+    <string name="about_privacy">Privacy policy</string>
+    <string name="about_licences">Open-source licences</string>
+    <string name="about_licences_detail">Fonts and libraries used by the app</string>
+    <string name="about_licences_text">Glasshouse for Android: MIT License.\n\nManrope and Outfit fonts: SIL Open Font License 1.1.\n\nAndroidX, Material Components for Android, ZXing and ZXing Android Embedded: Apache License 2.0.</string>
+    <string name="about_disclaimer">Glasshouse is an independent project, not affiliated with or endorsed by LG Electronics. LG and webOS are trademarks of LG Electronics.</string>
+    <string name="close">Close</string>
 </resources>

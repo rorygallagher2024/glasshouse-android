@@ -6,6 +6,17 @@ one's web dashboard full screen. The dashboard itself is the same page a browser
 the app adds the list, switching between TVs, and the file picker the
 sideload tab needs.
 
+On first launch an introduction explains that the TV needs the Glasshouse
+server installed, with a link to the
+[installation guide](https://rorygallagher2024.github.io/lg-webos-dashboard/install/).
+The About screen links to the source, the documentation and the
+[privacy policy](PRIVACY.md).
+
+The app follows the dashboard's look: monochrome, Manrope type, and black or
+light grey to match the phone's theme. On a TV's dashboard the header and the
+navigation bar take the page's own background, so they follow the dashboard's
+theme setting too.
+
 ## Adding a TV
 
 Scanning any QR code on the TV's dashboard adds that TV, token included: the

@@ -1,4 +1,140 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Glasshouse" parent="Theme.Material3.DayNight.NoActionBar" />
+    <!-- Monochrome like the dashboard: the primary colour is the foreground,
+         so a filled button is inverted (white on black, black on light) and
+         every corner is square. -->
+    <style name="Base.Theme.Glasshouse" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/fg</item>
+        <item name="colorOnPrimary">@color/on_fg</item>
+        <item name="colorPrimaryContainer">@color/fg</item>
+        <item name="colorOnPrimaryContainer">@color/on_fg</item>
+        <item name="colorPrimaryInverse">@color/on_fg</item>
+        <item name="colorSecondary">@color/fg</item>
+        <item name="colorOnSecondary">@color/on_fg</item>
+        <item name="colorSecondaryContainer">@color/fg12</item>
+        <item name="colorOnSecondaryContainer">@color/fg</item>
+        <item name="colorTertiary">@color/fg</item>
+        <item name="colorOnTertiary">@color/on_fg</item>
+        <item name="colorTertiaryContainer">@color/fg12</item>
+        <item name="colorOnTertiaryContainer">@color/fg</item>
+        <item name="colorError">@color/red</item>
+
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorOnBackground">@color/fg</item>
+        <item name="colorSurface">@color/bg</item>
+        <item name="colorOnSurface">@color/fg</item>
+        <item name="colorSurfaceVariant">@color/surface_highest</item>
+        <item name="colorOnSurfaceVariant">@color/fg60</item>
+        <item name="colorSurfaceInverse">@color/fg</item>
+        <item name="colorOnSurfaceInverse">@color/on_fg</item>
+        <item name="colorSurfaceBright">@color/surface_high</item>
+        <item name="colorSurfaceDim">@color/bg</item>
+        <item name="colorSurfaceContainerLowest">@color/surface_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/surface_low</item>
+        <item name="colorSurfaceContainer">@color/surface</item>
+        <item name="colorSurfaceContainerHigh">@color/surface_high</item>
+        <item name="colorSurfaceContainerHighest">@color/surface_highest</item>
+        <item name="colorOutline">@color/edge</item>
+        <item name="colorOutlineVariant">@color/fg12</item>
+
+        <item name="shapeAppearanceCornerExtraSmall">@style/ShapeAppearance.Glasshouse.Square</item>
+        <item name="shapeAppearanceCornerSmall">@style/ShapeAppearance.Glasshouse.Square</item>
+        <item name="shapeAppearanceCornerMedium">@style/ShapeAppearance.Glasshouse.Square</item>
+        <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.Glasshouse.Square</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.Glasshouse.Square</item>
+
+        <!-- Material's type scale names its own families, so each style it
+             uses is pointed at Manrope rather than setting fontFamily once. -->
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="fontFamily">@font/manrope</item>
+        <item name="textAppearanceDisplaySmall">@style/TextAppearance.Glasshouse.Display</item>
+        <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Glasshouse.Headline</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Glasshouse.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Glasshouse.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Glasshouse.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Glasshouse.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Glasshouse.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Glasshouse.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Glasshouse.Button</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Glasshouse.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/TextAppearance.Glasshouse.LabelSmall</item>
+
+        <item name="appBarLayoutStyle">@style/Widget.Glasshouse.AppBarLayout</item>
+        <item name="extendedFloatingActionButtonStyle">@style/Widget.Glasshouse.ExtendedFab</item>
+    </style>
+
+    <style name="Theme.Glasshouse" parent="Base.Theme.Glasshouse" />
+
+    <style name="ShapeAppearance.Glasshouse.Square" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">0dp</item>
+    </style>
+
+    <!-- The bars stay the page colour: no tint when content scrolls under. -->
+    <style name="Widget.Glasshouse.AppBarLayout" parent="Widget.Material3.AppBarLayout">
+        <item name="android:background">@color/bg</item>
+        <item name="liftOnScroll">false</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <!-- The dashboard has no shadows; the button is a flat inverted block. -->
+    <style name="Widget.Glasshouse.ExtendedFab" parent="Widget.Material3.ExtendedFloatingActionButton.Icon.Primary">
+        <item name="elevation">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:textAppearance">@style/TextAppearance.Glasshouse.Button</item>
+    </style>
+
+    <style name="TextAppearance.Glasshouse.Display" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:fontFamily">@font/outfit_light_static</item>
+        <item name="fontFamily">@font/outfit_light_static</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.Headline" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.TitleSmall" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="fontFamily">@font/manrope</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="fontFamily">@font/manrope</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.BodySmall" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:fontFamily">@font/manrope</item>
+        <item name="fontFamily">@font/manrope</item>
+    </style>
+    <!-- The dashboard's buttons: Manrope 500, 13px, uppercase, tracked .1em. -->
+    <style name="TextAppearance.Glasshouse.Button" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="textAllCaps">true</item>
+    </style>
+    <!-- Section labels, like the dashboard's small uppercase headings. -->
+    <style name="TextAppearance.Glasshouse.LabelMedium" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:fontFamily">@font/manrope_semibold</item>
+        <item name="fontFamily">@font/manrope_semibold</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="textAllCaps">true</item>
+    </style>
+    <style name="TextAppearance.Glasshouse.LabelSmall" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="fontFamily">@font/manrope_medium</item>
+    </style>
 </resources>

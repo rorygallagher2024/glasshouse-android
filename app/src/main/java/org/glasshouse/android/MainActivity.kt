@@ -3,13 +3,14 @@ package org.glasshouse.android
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -47,8 +48,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        paintSystemBars()
         super.onCreate(savedInstanceState)
+        if (!IntroActivity.seen(this)) {
+            startActivity(Intent(this, IntroActivity::class.java))
+            finish()
+            return
+        }
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
         padForSystemBars(findViewById(R.id.appbar), findViewById(R.id.content))
@@ -62,7 +68,20 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        refresh()
+        if (::store.isInitialized) refresh()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_about) {
+            startActivity(Intent(this, AboutActivity::class.java))
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun refresh() {
