@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dashboard's back strip on a screen with no cutout: the button's height. -->
+    <dimen name="dash_strip_min">48dp</dimen>
+</resources>
