@@ -452,6 +452,7 @@ class MainActivity : AppCompatActivity() {
         private val range = view.findViewById<TextView>(R.id.range)
         private val picture = view.findViewById<TextView>(R.id.picture)
         private val turnOn = view.findViewById<MaterialButton>(R.id.turn_on)
+        private val wakeNote = view.findViewById<TextView>(R.id.wake_note)
         private val address = view.findViewById<TextView>(R.id.address)
         private val more = view.findViewById<ImageButton>(R.id.more)
 
@@ -489,8 +490,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             // A dark TV that answers is turned on by its server; one that does
-            // not, by Wake-on-LAN, which needs its MAC.
-            val canTurnOn = state.reach == Reach.ASLEEP || (state.reach == Reach.OFFLINE && tv.mac != null)
+            // not, by Wake-on-LAN, which needs its MAC and the TV's own setting
+            // on. That setting is shown while it is off, on or offline alike:
+            // it can only be switched on while the TV is on.
+            val wakeOff = tv.wakeOnLan == false
+            wakeNote.visibility = if (wakeOff) View.VISIBLE else View.GONE
+            val canTurnOn = state.reach == Reach.ASLEEP ||
+                (state.reach == Reach.OFFLINE && tv.mac != null && !wakeOff)
             turnOn.visibility = if (canTurnOn) View.VISIBLE else View.GONE
             turnOn.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
             turnOn.setOnClickListener { open(tv, wake = true) }
