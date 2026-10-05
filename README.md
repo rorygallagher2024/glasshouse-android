@@ -48,10 +48,9 @@ stays in the app. The app adds `Glasshouse-Android/<version>` to the WebView's
 user agent.
 
 A TV's dashboard is full screen: the system bars are hidden until swiped in
-from an edge. The bar with the way back to the list, Switch TV and Reload
-floats over the page. It shows while the page loads, on scrolling up and with
-the system bars, and slides away after three seconds or on scrolling down. It
-stays while the TV is connecting or not answering.
+from an edge. The only control is a back button in the strip beside the
+camera cutout, space the page could not use; on a screen without a cutout the
+strip is the button's height. Switching TVs is done from the list.
 
 WebView timers are paused while the app is in the background, which stops the
 dashboard's polling.

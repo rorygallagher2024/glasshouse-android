@@ -28,8 +28,7 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
 
-    <string name="dash_reload">Reload</string>
-    <string name="dash_switch">Switch TV</string>
+    <string name="dash_back">Back to TVs</string>
     <string name="dash_connecting">Connecting to %1$s…</string>
     <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network.</string>
     <string name="dash_retry">Try again</string>

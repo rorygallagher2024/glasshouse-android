@@ -8,8 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -18,30 +16,28 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import java.util.concurrent.Executors
 
-/** One TV's web dashboard, full screen, with a switch to the other saved TVs. */
+/** One TV's web dashboard, full screen, with a way back to the list of TVs. */
 class DashboardActivity : AppCompatActivity() {
 
     private lateinit var store: TvStore
     private lateinit var tv: Tv
     private lateinit var web: WebView
-    private lateinit var appBar: AppBarLayout
-    private lateinit var toolbar: MaterialToolbar
+    private lateinit var strip: View
+    private lateinit var back: ImageButton
     private lateinit var content: View
     private lateinit var progress: LinearProgressIndicator
     private lateinit var errorView: View
@@ -54,24 +50,11 @@ class DashboardActivity : AppCompatActivity() {
     /** Bumped by every load, so a probe or timeout from an earlier one is ignored. */
     private var loadId = 0
 
-    private var controlsShown = true
-    private val hideControls = Runnable { setControlsShown(false) }
-
-    /** Scroll since the last change of direction, in pixels. */
-    private var scrolled = 0
-    private var scrollSlop = 0
-
     /** Gives up on a page that has started but not arrived. */
     private val loadTimeout = Runnable {
         web.stopLoading()
         showError()
     }
-
-    /** The foreground that suits the bars' current colour, for the menu icons. */
-    private var barForeground = 0
-
-    /** Set when switching TVs, so Back does not return to the previous one. */
-    private var clearHistoryOnLoad = false
 
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val pickFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -91,12 +74,10 @@ class DashboardActivity : AppCompatActivity() {
         tv = saved
 
         setContentView(R.layout.activity_dashboard)
-        appBar = findViewById(R.id.appbar)
-        toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        strip = findViewById(R.id.strip)
+        back = findViewById(R.id.back)
+        back.setOnClickListener { finish() }
         content = findViewById(R.id.content)
-        scrollSlop = (SCROLL_SLOP_DP * resources.displayMetrics.density).toInt()
         fitAroundCutout()
         goImmersive()
 
@@ -133,7 +114,6 @@ class DashboardActivity : AppCompatActivity() {
             // Lets the dashboard tell it is in the app, should it need to.
             userAgentString = "$userAgentString Glasshouse-Android/${BuildConfig.VERSION_NAME}"
         }
-        web.setOnScrollChangeListener { _, _, y, _, oldY -> onPageScrolled(y - oldY) }
         // Only the TV's own pages load here, and all this can do is recolour the bars.
         web.addJavascriptInterface(PageBridge(), "GlasshouseApp")
         web.webViewClient = object : WebViewClient() {
@@ -146,7 +126,6 @@ class DashboardActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 progress.visibility = View.VISIBLE
-                setControlsShown(true)
             }
 
             // Committed is the first moment the page's theme is applied, so
@@ -159,12 +138,7 @@ class DashboardActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 progress.visibility = View.INVISIBLE
-                peekControls()
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
-                if (clearHistoryOnLoad) {
-                    clearHistoryOnLoad = false
-                    view.clearHistory()
-                }
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -211,12 +185,9 @@ class DashboardActivity : AppCompatActivity() {
         val id = ++loadId
         val target = tv
         main.removeCallbacks(loadTimeout)
-        supportActionBar?.title = target.name
-        supportActionBar?.subtitle = target.link.label
         showStatus(getString(R.string.dash_connecting, target.name), canRetry = false)
         progress.isIndeterminate = true
         progress.visibility = View.VISIBLE
-        setControlsShown(true)
         probes.execute {
             val answers = TvProbe.answers(target.link)
             main.post {
@@ -249,7 +220,6 @@ class DashboardActivity : AppCompatActivity() {
     private fun showError() {
         progress.visibility = View.INVISIBLE
         showStatus(getString(R.string.dash_unreachable, tv.name, tv.link.label), canRetry = true)
-        setControlsShown(true)
     }
 
     /**
@@ -265,81 +235,35 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * The page keeps clear of the camera cutout and the keyboard only; the
-     * system bars, when swiped in, sit over it. The floating bar goes below
-     * the status bar when that is showing, and comes in with it.
+     * The strip takes the camera cutout's height, which the page could not
+     * use, so the back button costs the page nothing on a phone with one; on
+     * a screen without, it is the button's own height. The page keeps clear of
+     * the keyboard; the system bars, when swiped in, sit over it.
      */
     private fun fitAroundCutout() {
+        val minStrip = resources.getDimensionPixelSize(R.dimen.dash_strip_min)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { _, insets ->
             val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            val status = insets.getInsets(WindowInsetsCompat.Type.statusBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            appBar.updatePadding(left = cutout.left, top = maxOf(cutout.top, status.top), right = cutout.right)
-            content.updatePadding(
-                left = cutout.left,
-                top = cutout.top,
-                right = cutout.right,
-                bottom = maxOf(cutout.bottom, ime.bottom),
-            )
-            if (insets.isVisible(WindowInsetsCompat.Type.statusBars())) peekControls()
+            strip.updateLayoutParams { height = maxOf(cutout.top, minStrip) }
+            strip.updatePadding(left = cutout.left, right = cutout.right)
+            content.updatePadding(left = cutout.left, right = cutout.right, bottom = maxOf(cutout.bottom, ime.bottom))
             insets
-        }
-    }
-
-    /** While connecting, loading or offline the bar stays: it is the way back. */
-    private fun controlsPinned() =
-        errorView.visibility == View.VISIBLE || progress.visibility == View.VISIBLE
-
-    /** Shows the bar, then lets it slide away after a pause unless pinned. */
-    private fun peekControls() {
-        setControlsShown(true)
-        if (!controlsPinned()) main.postDelayed(hideControls, CONTROLS_MS)
-    }
-
-    private fun setControlsShown(shown: Boolean) {
-        main.removeCallbacks(hideControls)
-        if (!shown && controlsPinned()) return
-        if (shown == controlsShown) return
-        controlsShown = shown
-        appBar.animate().cancel()
-        if (shown) {
-            appBar.visibility = View.VISIBLE
-            appBar.animate().translationY(0f).setDuration(CONTROLS_ANIM_MS)
-        } else {
-            appBar.animate().translationY(-appBar.height.toFloat()).setDuration(CONTROLS_ANIM_MS)
-                // Invisible once gone, so it takes no touches or screen-reader focus.
-                .withEndAction { if (!controlsShown) appBar.visibility = View.INVISIBLE }
-        }
-    }
-
-    /** Scrolling up brings the bar back, as in a browser; scrolling down puts it away. */
-    private fun onPageScrolled(dy: Int) {
-        if (dy == 0) return
-        if ((dy > 0) != (scrolled > 0)) scrolled = 0
-        scrolled += dy
-        when {
-            scrolled < -scrollSlop -> { scrolled = 0; peekControls() }
-            scrolled > scrollSlop -> { scrolled = 0; setControlsShown(false) }
         }
     }
 
     /**
      * The dashboard has its own Auto, Dark and Light setting, so the bars take
      * the page's actual background rather than the phone's theme, and the
-     * header and navigation bar run into the page without a seam.
+     * strip and the swiped-in system bars run into the page without a seam.
      */
     private fun paintBars(background: Int) {
         val fg = if (isLightColour(background)) Color.BLACK else Color.WHITE
-        barForeground = fg
         paintSystemBars(background)
-        appBar.setBackgroundColor(background)
+        strip.setBackgroundColor(background)
         web.setBackgroundColor(background)
-        toolbar.setTitleTextColor(fg)
-        toolbar.setSubtitleTextColor(ColorUtils.setAlphaComponent(fg, 0x99))
-        toolbar.navigationIcon = toolbar.navigationIcon?.mutate()?.apply { setTint(fg) }
-        toolbar.overflowIcon = toolbar.overflowIcon?.mutate()?.apply { setTint(fg) }
+        back.setColorFilter(fg)
         progress.setIndicatorColor(fg)
-        invalidateOptionsMenu()
     }
 
     private inner class PageBridge {
@@ -353,62 +277,9 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
-    private fun switchTo(next: Tv) {
-        if (next.id == tv.id) return
-        tv = next
-        clearHistoryOnLoad = true
-        load()
-    }
-
-    private fun chooseTv() {
-        val tvs = store.all()
-        val names = tvs.map { it.name }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.dash_switch)
-            .setSingleChoiceItems(names, tvs.indexOfFirst { it.id == tv.id }) { dialog, which ->
-                dialog.dismiss()
-                switchTo(tvs[which])
-            }
-            .show()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.dashboard, menu)
-        return true
-    }
-
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.action_switch).apply {
-            isVisible = store.all().size > 1
-            icon = icon?.mutate()?.apply { setTint(barForeground) }
-        }
-        return super.onPrepareOptionsMenu(menu)
-    }
-
-    // Keeps the bar while its menu is open.
-    override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
-        main.removeCallbacks(hideControls)
-        return super.onMenuOpened(featureId, menu)
-    }
-
-    override fun onPanelClosed(featureId: Int, menu: Menu) {
-        super.onPanelClosed(featureId, menu)
-        peekControls()
-    }
-
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) goImmersive()
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        android.R.id.home -> { finish(); true }
-        R.id.action_switch -> { chooseTv(); true }
-        R.id.action_reload -> {
-            if (errorView.visibility == View.VISIBLE) load() else web.reload()
-            true
-        }
-        else -> super.onOptionsItemSelected(item)
     }
 
     // pauseTimers also stops the dashboard's polling, which would otherwise
@@ -441,10 +312,6 @@ class DashboardActivity : AppCompatActivity() {
 
         /** For a server that answered the probe but then stalls on the page. */
         private const val PAGE_TIMEOUT_MS = 15_000L
-
-        private const val CONTROLS_MS = 3_000L
-        private const val CONTROLS_ANIM_MS = 180L
-        private const val SCROLL_SLOP_DP = 24
 
         /**
          * Reports the page's background now and whenever the dashboard's
