@@ -20,9 +20,18 @@ object TvProbe {
 
     /**
      * What /api/stats says about the TV itself. [name] is the TV's own, such
-     * as "LG C2 OLED", for naming a TV found on the network.
+     * as "LG C2 OLED", for naming a TV found on the network; [model] is LG's
+     * model number, such as "OLED42C24LA".
      */
-    data class Identity(val mac: String, val wakeOnLan: Boolean?, val name: String? = null)
+    data class Identity(
+        val mac: String,
+        val wakeOnLan: Boolean?,
+        val name: String? = null,
+        val model: String? = null,
+    )
+
+    /** What is on screen: the input or app, SDR or an HDR format, and picture mode. */
+    data class Showing(val source: String?, val range: String?, val picture: String?)
 
     /**
      * The server's power state. A TV can answer while dark: Active Standby
@@ -31,7 +40,7 @@ object TvProbe {
      */
     data class Power(val on: Boolean, val label: String)
 
-    data class Status(val reach: Reach, val identity: Identity?, val power: Power?)
+    data class Status(val reach: Reach, val identity: Identity?, val power: Power?, val showing: Showing?)
 
     private const val TIMEOUT_MS = 4000
 
@@ -57,9 +66,9 @@ object TvProbe {
     /** Whether the TV answers and, when it does, what it says about itself. */
     fun status(link: TvLink): Status {
         val reach = check(link)
-        if (reach != Reach.ANSWERS) return Status(reach, null, null)
+        if (reach != Reach.ANSWERS) return Status(reach, null, null, null)
         val stats = stats(link)
-        return Status(reach, stats?.let(::identityOf), stats?.let(::powerOf))
+        return Status(reach, stats?.let(::identityOf), stats?.let(::powerOf), stats?.let(::showingOf))
     }
 
     /**
@@ -134,8 +143,23 @@ object TvProbe {
 
     private fun identityOf(stats: JSONObject): Identity? {
         val mac = WakeOnLan.normaliseMac(stats.optString("mac")) ?: return null
-        val name = stats.optJSONObject("device")?.optString("name").orEmpty().ifEmpty { null }
-        return Identity(mac, if (stats.has("wakeOnLan")) stats.optBoolean("wakeOnLan") else null, name)
+        val device = stats.optJSONObject("device")
+        return Identity(
+            mac = mac,
+            wakeOnLan = if (stats.has("wakeOnLan")) stats.optBoolean("wakeOnLan") else null,
+            name = device?.optString("name").orEmpty().ifEmpty { null },
+            model = device?.optString("model").orEmpty().ifEmpty { null },
+        )
+    }
+
+    private fun showingOf(stats: JSONObject): Showing? {
+        val picture = stats.optJSONObject("picture")
+        val showing = Showing(
+            source = stats.optString("app_name").ifEmpty { null },
+            range = picture?.optString("dynamicRange").orEmpty().ifEmpty { null },
+            picture = picture?.optString("mode").orEmpty().ifEmpty { null },
+        )
+        return showing.takeIf { it.source != null || it.range != null || it.picture != null }
     }
 
     private fun powerOf(stats: JSONObject): Power? {

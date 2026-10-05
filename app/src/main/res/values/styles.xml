@@ -15,4 +15,33 @@
         <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
         <item name="android:textColor">@color/fg80</item>
     </style>
+
+    <!-- The TV list's cards, after the dashboard's header: a small tracked
+         label, the name large in Outfit, a pill for the power state. -->
+    <style name="TextAppearance.Glasshouse.CardName" parent="TextAppearance.Glasshouse.Display">
+        <item name="android:textSize">28sp</item>
+        <item name="android:textColor">@color/fg</item>
+    </style>
+
+    <style name="TextAppearance.Glasshouse.CardLabel" parent="">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:letterSpacing">0.2</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/fg60</item>
+    </style>
+
+    <style name="TextAppearance.Glasshouse.Pill" parent="">
+        <item name="android:fontFamily">@font/manrope_medium</item>
+        <item name="android:textSize">10.5sp</item>
+        <item name="android:letterSpacing">0.1</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="TextAppearance.Glasshouse.Tag" parent="">
+        <item name="android:fontFamily">@font/manrope_semibold</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textColor">@color/fg80</item>
+    </style>
 </resources>

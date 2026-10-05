@@ -16,6 +16,7 @@ import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.button.MaterialButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -36,12 +37,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var list: RecyclerView
     private lateinit var empty: View
     private lateinit var lanBanner: View
+    private lateinit var count: TextView
     private var adapter: TvAdapter? = null
 
     private enum class Reach { CHECKING, ON, ASLEEP, ONLINE, OFFLINE, UNTRUSTED_CERT }
 
-    /** A TV's state as shown; [label] is the server's name for a dark TV's state. */
-    private data class Shown(val reach: Reach, val label: String? = null)
+    /**
+     * A TV's state as shown; [label] is the server's name for a dark TV's
+     * state, and [showing] what is on screen while it is on.
+     */
+    private data class Shown(val reach: Reach, val label: String? = null, val showing: TvProbe.Showing? = null)
 
     /**
      * Last probe result by origin, not id, so an edited address starts over
@@ -97,6 +102,7 @@ class MainActivity : AppCompatActivity() {
                         link = TvLink(link.origin, token),
                         mac = identity?.mac ?: known.mac,
                         wakeOnLan = identity?.wakeOnLan ?: known.wakeOnLan,
+                        model = identity?.model ?: known.model,
                     ))
                     refresh()
                     Toast.makeText(this, getString(R.string.tv_updated, known.name), Toast.LENGTH_SHORT).show()
@@ -117,12 +123,15 @@ class MainActivity : AppCompatActivity() {
         }
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
+        // The toolbar holds its own mark and name.
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         padForSystemBars(findViewById(R.id.appbar), findViewById(R.id.content))
 
         store = TvStore(this)
         list = findViewById(R.id.list)
         empty = findViewById(R.id.empty)
         lanBanner = findViewById(R.id.lan_banner)
+        count = findViewById(R.id.count)
         list.layoutManager = LinearLayoutManager(this)
         findViewById<View>(R.id.add).setOnClickListener { chooseHowToAdd() }
         findViewById<View>(R.id.lan_allow).setOnClickListener {
@@ -167,7 +176,7 @@ class MainActivity : AppCompatActivity() {
                         // Without stats (a wrong token, say) the power state is unknown.
                         TvProbe.Reach.ANSWERS -> when {
                             power == null -> Shown(Reach.ONLINE)
-                            power.on -> Shown(Reach.ON)
+                            power.on -> Shown(Reach.ON, showing = status.showing)
                             else -> Shown(Reach.ASLEEP, power.label)
                         }
                         TvProbe.Reach.NO_ANSWER -> Shown(Reach.OFFLINE)
@@ -213,8 +222,9 @@ class MainActivity : AppCompatActivity() {
     /** Stores what a TV said about itself, against the entry it is now. */
     private fun remember(id: String, identity: TvProbe.Identity) {
         val current = store.get(id) ?: return
-        if (current.mac == identity.mac && current.wakeOnLan == identity.wakeOnLan) return
-        store.save(current.copy(mac = identity.mac, wakeOnLan = identity.wakeOnLan))
+        val model = identity.model ?: current.model
+        if (current.mac == identity.mac && current.wakeOnLan == identity.wakeOnLan && current.model == model) return
+        store.save(current.copy(mac = identity.mac, wakeOnLan = identity.wakeOnLan, model = model))
         refresh()
     }
 
@@ -238,6 +248,8 @@ class MainActivity : AppCompatActivity() {
         // Covers a TV just added or edited; already-running probes are skipped.
         checkAll()
         empty.visibility = if (tvs.isEmpty()) View.VISIBLE else View.GONE
+        count.visibility = if (tvs.isEmpty()) View.GONE else View.VISIBLE
+        count.text = getString(R.string.tv_count, tvs.size)
     }
 
     private fun chooseHowToAdd() {
@@ -362,6 +374,7 @@ class MainActivity : AppCompatActivity() {
                     // and a different TV at the new address replaces it when it answers.
                     mac = identity?.mac ?: tv?.mac,
                     wakeOnLan = identity?.wakeOnLan ?: tv?.wakeOnLan,
+                    model = identity?.model ?: tv?.model,
                 )
                 store.save(saved)
                 refresh()
@@ -387,7 +400,11 @@ class MainActivity : AppCompatActivity() {
                     remember(added.id, identity)
                     return@post
                 }
-                store.save(older.copy(link = added.link, wakeOnLan = identity.wakeOnLan ?: older.wakeOnLan))
+                store.save(older.copy(
+                    link = added.link,
+                    wakeOnLan = identity.wakeOnLan ?: older.wakeOnLan,
+                    model = identity.model ?: older.model,
+                ))
                 store.remove(added.id)
                 refresh()
                 Toast.makeText(this, getString(R.string.tv_updated, older.name), Toast.LENGTH_SHORT).show()
@@ -426,33 +443,59 @@ class MainActivity : AppCompatActivity() {
     }
 
     private inner class TvHolder(view: View) : RecyclerView.ViewHolder(view) {
+        private val card = view.findViewById<View>(R.id.card)
+        private val model = view.findViewById<TextView>(R.id.model)
+        private val pill = view.findViewById<TextView>(R.id.pill)
         private val name = view.findViewById<TextView>(R.id.name)
+        private val showingRow = view.findViewById<View>(R.id.showing)
+        private val source = view.findViewById<TextView>(R.id.source)
+        private val range = view.findViewById<TextView>(R.id.range)
+        private val picture = view.findViewById<TextView>(R.id.picture)
+        private val turnOn = view.findViewById<MaterialButton>(R.id.turn_on)
         private val address = view.findViewById<TextView>(R.id.address)
-        private val power = view.findViewById<ImageButton>(R.id.power)
         private val more = view.findViewById<ImageButton>(R.id.more)
 
         fun bind(tv: Tv) {
-            name.text = tv.name
             val state = shown[tv.link.origin] ?: Shown(Reach.CHECKING)
-            val (label, dot) = when (state.reach) {
-                Reach.ON -> getString(R.string.tv_on) to R.drawable.dot_online
-                Reach.ASLEEP -> state.label.orEmpty().ifEmpty { getString(R.string.tv_standby) } to R.drawable.dot_asleep
-                Reach.ONLINE -> getString(R.string.tv_online) to R.drawable.dot_online
-                Reach.OFFLINE -> getString(R.string.tv_offline) to R.drawable.dot_offline
-                Reach.UNTRUSTED_CERT -> getString(R.string.tv_untrusted) to R.drawable.dot_offline
-                Reach.CHECKING -> getString(R.string.tv_checking) to R.drawable.dot_checking
+            model.text = tv.model.orEmpty()
+            name.text = tv.name
+            address.text = tv.link.label
+
+            // The pill: the dashboard's green for on, a ring for a TV that
+            // answers while dark, grey for one that does not.
+            val (label, dot, frame, colour) = when (state.reach) {
+                Reach.ON -> Pill(getString(R.string.tv_on), R.drawable.dot_online, R.drawable.pill_on, R.color.green)
+                Reach.ONLINE -> Pill(getString(R.string.tv_online), R.drawable.dot_online, R.drawable.pill_on, R.color.green)
+                Reach.ASLEEP -> Pill(
+                    state.label.orEmpty().ifEmpty { getString(R.string.tv_standby) },
+                    R.drawable.dot_asleep, R.drawable.pill_asleep, R.color.fg80,
+                )
+                Reach.OFFLINE -> Pill(getString(R.string.tv_offline), R.drawable.dot_offline, R.drawable.pill_off, R.color.fg50)
+                Reach.UNTRUSTED_CERT -> Pill(getString(R.string.tv_untrusted), R.drawable.dot_offline, R.drawable.pill_off, R.color.fg60)
+                Reach.CHECKING -> Pill(getString(R.string.tv_checking), R.drawable.dot_checking, R.drawable.pill_off, R.color.fg50)
             }
-            address.text = getString(R.string.tv_status_line, label, tv.link.label)
-            address.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
-            itemView.setOnClickListener { open(tv) }
+            pill.text = label
+            pill.setBackgroundResource(frame)
+            pill.setTextColor(getColor(colour))
+            pill.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
+            name.setTextColor(getColor(if (state.reach == Reach.OFFLINE) R.color.fg50 else R.color.fg))
+
+            val showing = state.showing
+            showingRow.visibility = if (showing != null) View.VISIBLE else View.GONE
+            if (showing != null) {
+                bindPart(source, showing.source)
+                bindPart(range, showing.range)
+                bindPart(picture, showing.picture)
+            }
 
             // A dark TV that answers is turned on by its server; one that does
             // not, by Wake-on-LAN, which needs its MAC.
             val canTurnOn = state.reach == Reach.ASLEEP || (state.reach == Reach.OFFLINE && tv.mac != null)
-            power.visibility = if (canTurnOn) View.VISIBLE else View.GONE
-            power.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
-            power.setOnClickListener { open(tv, wake = true) }
+            turnOn.visibility = if (canTurnOn) View.VISIBLE else View.GONE
+            turnOn.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
+            turnOn.setOnClickListener { open(tv, wake = true) }
 
+            card.setOnClickListener { open(tv) }
             more.contentDescription = getString(R.string.tv_more, tv.name)
             more.setOnClickListener {
                 val menu = PopupMenu(this@MainActivity, more)
@@ -467,7 +510,14 @@ class MainActivity : AppCompatActivity() {
                 menu.show()
             }
         }
+
+        private fun bindPart(view: TextView, text: String?) {
+            view.text = text.orEmpty()
+            view.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        }
     }
+
+    private data class Pill(val label: String, val dot: Int, val frame: Int, val colour: Int)
 
     companion object {
         private const val RECHECK_MS = 15_000L
