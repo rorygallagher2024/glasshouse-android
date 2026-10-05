@@ -47,5 +47,11 @@ Links to other sites open in the phone's browser; only the TV's own origin
 stays in the app. The app adds `Glasshouse-Android/<version>` to the WebView's
 user agent.
 
+A TV's dashboard is full screen: the system bars are hidden until swiped in
+from an edge. The bar with the way back to the list, Switch TV and Reload
+floats over the page. It shows while the page loads, on scrolling up and with
+the system bars, and slides away after three seconds or on scrolling down. It
+stays while the TV is connecting or not answering.
+
 WebView timers are paused while the app is in the background, which stops the
 dashboard's polling.
