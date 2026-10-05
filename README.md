@@ -71,5 +71,10 @@ Links to other sites open in the phone's browser; only the TV's own origin
 stays in the app. The app adds `Glasshouse-Android/<version>` to the WebView's
 user agent.
 
+A TV's dashboard is full screen: the system bars are hidden until swiped in
+from an edge. The only control is a back button in the strip beside the
+camera cutout, space the page could not use; on a screen without a cutout the
+strip is the button's height. Switching TVs is done from the list.
+
 WebView timers are paused while the app is in the background, which stops the
 dashboard's polling.

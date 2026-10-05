@@ -2,6 +2,8 @@ package org.glasshouse.android
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -20,6 +22,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import java.util.concurrent.Executors
 
 /** The saved TVs: open one, add one by QR code or address, edit or remove. */
 class MainActivity : AppCompatActivity() {
@@ -27,6 +30,26 @@ class MainActivity : AppCompatActivity() {
     private lateinit var store: TvStore
     private lateinit var list: RecyclerView
     private lateinit var empty: View
+    private var adapter: TvAdapter? = null
+
+    private enum class Reach { CHECKING, ONLINE, OFFLINE }
+
+    /**
+     * Last probe result by origin, not id, so an edited address starts over
+     * as unknown. Read and written on the main thread only.
+     */
+    private val reach = mutableMapOf<String, Reach>()
+    private val inFlight = mutableSetOf<String>()
+    private val probes = Executors.newFixedThreadPool(4)
+    private val main = Handler(Looper.getMainLooper())
+
+    /** Rechecks while the list is on screen, so a TV turned on or off shows it. */
+    private val recheck = object : Runnable {
+        override fun run() {
+            checkAll()
+            main.postDelayed(this, RECHECK_MS)
+        }
+    }
 
     private val scan = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents ?: return@registerForActivityResult
@@ -68,7 +91,37 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::store.isInitialized) refresh()
+        if (!::store.isInitialized) return
+        refresh()
+        main.postDelayed(recheck, RECHECK_MS)
+    }
+
+    override fun onPause() {
+        main.removeCallbacks(recheck)
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        main.removeCallbacks(recheck)
+        probes.shutdownNow()
+        super.onDestroy()
+    }
+
+    private fun checkAll() {
+        for (tv in store.all()) {
+            val link = tv.link
+            // A probe gives up within 8 seconds, but one stuck in DNS can outlast a round.
+            if (!inFlight.add(link.origin)) continue
+            probes.execute {
+                val answers = TvProbe.answers(link)
+                main.post {
+                    inFlight.remove(link.origin)
+                    if (isDestroyed) return@post
+                    reach[link.origin] = if (answers) Reach.ONLINE else Reach.OFFLINE
+                    adapter?.statusChanged(link.origin)
+                }
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -86,7 +139,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val tvs = store.all()
-        list.adapter = TvAdapter(tvs)
+        adapter = TvAdapter(tvs).also { list.adapter = it }
+        // Covers a TV just added or edited; already-running probes are skipped.
+        checkAll()
         empty.visibility = if (tvs.isEmpty()) View.VISIBLE else View.GONE
     }
 
@@ -170,6 +225,10 @@ class MainActivity : AppCompatActivity() {
             TvHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_tv, parent, false))
 
         override fun onBindViewHolder(holder: TvHolder, position: Int) = holder.bind(tvs[position])
+
+        fun statusChanged(origin: String) {
+            tvs.forEachIndexed { i, tv -> if (tv.link.origin == origin) notifyItemChanged(i) }
+        }
     }
 
     private inner class TvHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -179,7 +238,14 @@ class MainActivity : AppCompatActivity() {
 
         fun bind(tv: Tv) {
             name.text = tv.name
-            address.text = tv.link.label
+            val state = reach[tv.link.origin] ?: Reach.CHECKING
+            val (label, dot) = when (state) {
+                Reach.ONLINE -> R.string.tv_online to R.drawable.dot_online
+                Reach.OFFLINE -> R.string.tv_offline to R.drawable.dot_offline
+                Reach.CHECKING -> R.string.tv_checking to R.drawable.dot_checking
+            }
+            address.text = getString(R.string.tv_status_line, getString(label), tv.link.label)
+            address.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
             itemView.setOnClickListener { open(tv) }
             more.contentDescription = getString(R.string.tv_more, tv.name)
             more.setOnClickListener {
@@ -195,5 +261,9 @@ class MainActivity : AppCompatActivity() {
                 menu.show()
             }
         }
+    }
+
+    companion object {
+        private const val RECHECK_MS = 15_000L
     }
 }

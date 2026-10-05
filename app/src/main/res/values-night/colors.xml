@@ -9,6 +9,7 @@
     <color name="edge">#66FFFFFF</color>
     <color name="fg12">#1FFFFFFF</color>
     <color name="red">#FF3030</color>
+    <color name="green">#30DE61</color>
 
     <color name="surface_lowest">#000000</color>
     <color name="surface_low">#0D0D0D</color>

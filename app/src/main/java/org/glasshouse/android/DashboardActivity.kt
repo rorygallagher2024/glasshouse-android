@@ -8,8 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
@@ -18,25 +16,29 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.ColorUtils
-import com.google.android.material.appbar.AppBarLayout
-import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import java.util.concurrent.Executors
 
-/** One TV's web dashboard, full screen, with a switch to the other saved TVs. */
+/** One TV's web dashboard, full screen, with a way back to the list of TVs. */
 class DashboardActivity : AppCompatActivity() {
 
     private lateinit var store: TvStore
     private lateinit var tv: Tv
     private lateinit var web: WebView
-    private lateinit var appBar: AppBarLayout
-    private lateinit var toolbar: MaterialToolbar
+    private lateinit var strip: View
+    private lateinit var back: ImageButton
+    private lateinit var content: View
     private lateinit var progress: LinearProgressIndicator
     private lateinit var errorView: View
     private lateinit var errorText: TextView
@@ -53,12 +55,6 @@ class DashboardActivity : AppCompatActivity() {
         web.stopLoading()
         showError()
     }
-
-    /** The foreground that suits the bars' current colour, for the menu icons. */
-    private var barForeground = 0
-
-    /** Set when switching TVs, so Back does not return to the previous one. */
-    private var clearHistoryOnLoad = false
 
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private val pickFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -78,11 +74,12 @@ class DashboardActivity : AppCompatActivity() {
         tv = saved
 
         setContentView(R.layout.activity_dashboard)
-        appBar = findViewById(R.id.appbar)
-        toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        padForSystemBars(appBar, findViewById(R.id.content))
+        strip = findViewById(R.id.strip)
+        back = findViewById(R.id.back)
+        back.setOnClickListener { finish() }
+        content = findViewById(R.id.content)
+        fitAroundCutout()
+        goImmersive()
 
         web = findViewById(R.id.web)
         progress = findViewById(R.id.progress)
@@ -142,10 +139,6 @@ class DashboardActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String?) {
                 progress.visibility = View.INVISIBLE
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
-                if (clearHistoryOnLoad) {
-                    clearHistoryOnLoad = false
-                    view.clearHistory()
-                }
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -192,8 +185,6 @@ class DashboardActivity : AppCompatActivity() {
         val id = ++loadId
         val target = tv
         main.removeCallbacks(loadTimeout)
-        supportActionBar?.title = target.name
-        supportActionBar?.subtitle = target.link.label
         showStatus(getString(R.string.dash_connecting, target.name), canRetry = false)
         progress.isIndeterminate = true
         progress.visibility = View.VISIBLE
@@ -232,22 +223,47 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
+     * Full screen: the system bars stay hidden until swiped in from an edge,
+     * and come back hidden by themselves. Reapplied on regaining focus, since
+     * a dialog or another app can bring them back.
+     */
+    private fun goImmersive() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    /**
+     * The strip takes the camera cutout's height, which the page could not
+     * use, so the back button costs the page nothing on a phone with one; on
+     * a screen without, it is the button's own height. The page keeps clear of
+     * the keyboard; the system bars, when swiped in, sit over it.
+     */
+    private fun fitAroundCutout() {
+        val minStrip = resources.getDimensionPixelSize(R.dimen.dash_strip_min)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { _, insets ->
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            strip.updateLayoutParams { height = maxOf(cutout.top, minStrip) }
+            strip.updatePadding(left = cutout.left, right = cutout.right)
+            content.updatePadding(left = cutout.left, right = cutout.right, bottom = maxOf(cutout.bottom, ime.bottom))
+            insets
+        }
+    }
+
+    /**
      * The dashboard has its own Auto, Dark and Light setting, so the bars take
      * the page's actual background rather than the phone's theme, and the
-     * header and navigation bar run into the page without a seam.
+     * strip and the swiped-in system bars run into the page without a seam.
      */
     private fun paintBars(background: Int) {
         val fg = if (isLightColour(background)) Color.BLACK else Color.WHITE
-        barForeground = fg
         paintSystemBars(background)
-        appBar.setBackgroundColor(background)
+        strip.setBackgroundColor(background)
         web.setBackgroundColor(background)
-        toolbar.setTitleTextColor(fg)
-        toolbar.setSubtitleTextColor(ColorUtils.setAlphaComponent(fg, 0x99))
-        toolbar.navigationIcon = toolbar.navigationIcon?.mutate()?.apply { setTint(fg) }
-        toolbar.overflowIcon = toolbar.overflowIcon?.mutate()?.apply { setTint(fg) }
+        back.setColorFilter(fg)
         progress.setIndicatorColor(fg)
-        invalidateOptionsMenu()
     }
 
     private inner class PageBridge {
@@ -261,46 +277,9 @@ class DashboardActivity : AppCompatActivity() {
         }
     }
 
-    private fun switchTo(next: Tv) {
-        if (next.id == tv.id) return
-        tv = next
-        clearHistoryOnLoad = true
-        load()
-    }
-
-    private fun chooseTv() {
-        val tvs = store.all()
-        val names = tvs.map { it.name }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.dash_switch)
-            .setSingleChoiceItems(names, tvs.indexOfFirst { it.id == tv.id }) { dialog, which ->
-                dialog.dismiss()
-                switchTo(tvs[which])
-            }
-            .show()
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.dashboard, menu)
-        return true
-    }
-
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.action_switch).apply {
-            isVisible = store.all().size > 1
-            icon = icon?.mutate()?.apply { setTint(barForeground) }
-        }
-        return super.onPrepareOptionsMenu(menu)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        android.R.id.home -> { finish(); true }
-        R.id.action_switch -> { chooseTv(); true }
-        R.id.action_reload -> {
-            if (errorView.visibility == View.VISIBLE) load() else web.reload()
-            true
-        }
-        else -> super.onOptionsItemSelected(item)
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) goImmersive()
     }
 
     // pauseTimers also stops the dashboard's polling, which would otherwise

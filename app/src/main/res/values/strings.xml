@@ -16,6 +16,11 @@
     <string name="tv_address_bad">Not an address the dashboard can be at</string>
     <string name="tv_token">Token, if the TV has one</string>
     <string name="tv_default_name">TV at %1$s</string>
+    <string name="tv_online">Online</string>
+    <string name="tv_offline">Offline</string>
+    <string name="tv_checking">Checking</string>
+    <!-- Status, then the TV's address: "Online · 192.168.1.20:8080". -->
+    <string name="tv_status_line">%1$s · %2$s</string>
     <string name="tv_updated">%1$s updated</string>
     <string name="scan_prompt">Scan a QR code on the TV\'s Glasshouse dashboard</string>
     <string name="scan_not_tv">That code is not a dashboard address</string>
@@ -23,8 +28,7 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
 
-    <string name="dash_reload">Reload</string>
-    <string name="dash_switch">Switch TV</string>
+    <string name="dash_back">Back to TVs</string>
     <string name="dash_connecting">Connecting to %1$s…</string>
     <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network.</string>
     <string name="dash_retry">Try again</string>
