@@ -59,6 +59,27 @@ class DashboardActivity : AppCompatActivity() {
      */
     @Volatile private var loadId = 0
 
+    /**
+     * Set when the main frame fails to load. The WebView then commits its own
+     * error page, which must not replace the offline message.
+     */
+    private var mainFrameFailed = false
+
+    /** When the app went to the background, to recheck the TV on return. */
+    private var pausedAt = 0L
+
+    /**
+     * Rechecks the TV while its dashboard is open: the page itself carries on
+     * showing its last readings when the TV goes off, until something is
+     * tapped and fails.
+     */
+    private val recheck = object : Runnable {
+        override fun run() {
+            checkStillThere()
+            main.postDelayed(this, RECHECK_MS)
+        }
+    }
+
     /** Gives up on a page that has started but not arrived. */
     private val loadTimeout = Runnable {
         web.stopLoading()
@@ -138,6 +159,7 @@ class DashboardActivity : AppCompatActivity() {
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                mainFrameFailed = false
                 progress.visibility = View.VISIBLE
             }
 
@@ -145,6 +167,7 @@ class DashboardActivity : AppCompatActivity() {
             // the bars change with the first paint rather than after loading.
             override fun onPageCommitVisible(view: WebView, url: String?) {
                 main.removeCallbacks(loadTimeout)
+                if (mainFrameFailed) return
                 showPage()
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
             }
@@ -157,6 +180,7 @@ class DashboardActivity : AppCompatActivity() {
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
+                    mainFrameFailed = true
                     main.removeCallbacks(loadTimeout)
                     showError()
                 }
@@ -166,6 +190,7 @@ class DashboardActivity : AppCompatActivity() {
             @SuppressLint("WebViewClientOnReceivedSslError")
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
                 handler.cancel()
+                mainFrameFailed = true
                 main.removeCallbacks(loadTimeout)
                 showUntrusted()
             }
@@ -394,22 +419,49 @@ class DashboardActivity : AppCompatActivity() {
     // keep asking the TV for stats with the app in the background.
     override fun onResume() {
         super.onResume()
-        if (::web.isInitialized) {
-            web.onResume()
-            web.resumeTimers()
-        }
+        if (!::web.isInitialized) return
+        web.onResume()
+        web.resumeTimers()
+        // Coming back to a dashboard left open: the TV may have gone off since.
+        if (pausedAt != 0L && SystemClock.elapsedRealtime() - pausedAt >= RESUME_CHECK_MS) checkStillThere()
+        main.postDelayed(recheck, RECHECK_MS)
     }
 
     override fun onPause() {
+        main.removeCallbacks(recheck)
         if (::web.isInitialized) {
             web.onPause()
             web.pauseTimers()
+            pausedAt = SystemClock.elapsedRealtime()
         }
         super.onPause()
     }
 
+    /**
+     * While the dashboard is showing, asks the TV whether it still answers,
+     * and swaps the page for the offline message if not. A load started
+     * meanwhile wins: its own probe decides.
+     */
+    private fun checkStillThere() {
+        if (web.visibility != View.VISIBLE) return
+        val id = loadId
+        val target = tv
+        probes.execute {
+            val reach = TvProbe.check(target.link)
+            main.post {
+                if (id != loadId || isDestroyed || web.visibility != View.VISIBLE) return@post
+                when (reach) {
+                    TvProbe.Reach.ANSWERS -> Unit
+                    TvProbe.Reach.NO_ANSWER -> { web.stopLoading(); showError() }
+                    TvProbe.Reach.UNTRUSTED_CERT -> { web.stopLoading(); showUntrusted() }
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
         main.removeCallbacks(loadTimeout)
+        main.removeCallbacks(recheck)
         probes.shutdownNow()
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
@@ -420,6 +472,9 @@ class DashboardActivity : AppCompatActivity() {
 
         /** Set by the list's power button: wake the TV rather than just connect. */
         const val EXTRA_WAKE = "wake"
+
+        private const val RESUME_CHECK_MS = 5_000L
+        private const val RECHECK_MS = 30_000L
 
         private const val WAKE_TIMEOUT_MS = 60_000L
         private const val WAKE_RESEND_MS = 5_000L
