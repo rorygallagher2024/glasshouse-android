@@ -40,10 +40,21 @@
             android:textColor="?android:attr/textColorSecondary" />
     </LinearLayout>
 
+    <!-- Turn on: shown for an offline TV whose MAC is known. -->
+    <ImageButton
+        android:id="@+id/power"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/tv_turn_on"
+        android:src="@drawable/ic_power"
+        android:visibility="gone" />
+
     <ImageButton
         android:id="@+id/more"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/tv_more_generic"
         android:src="@drawable/ic_more_vert" />
 </LinearLayout>

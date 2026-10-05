@@ -1,35 +1,131 @@
 package org.glasshouse.android
 
+import org.json.JSONException
+import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+import javax.net.ssl.SSLException
 
 /**
- * Whether a TV's server answers at all. A TV that is off or asleep drops
- * packets rather than refusing them, so a WebView pointed at it waits out the
- * system's TCP timeout (minutes) on a blank page; this gives up in seconds.
+ * Asks a TV's server whether it is there, and what it is. A TV that is off or
+ * asleep drops packets rather than refusing them, so a WebView pointed at it
+ * waits out the system's TCP timeout (minutes) on a blank page; these give up
+ * in seconds. All of them block: call them off the main thread.
  */
 object TvProbe {
 
+    enum class Reach { ANSWERS, NO_ANSWER, UNTRUSTED_CERT }
+
+    /** What /api/stats says about the TV itself. */
+    data class Identity(val mac: String, val wakeOnLan: Boolean?)
+
+    /**
+     * The server's power state. A TV can answer while dark: Active Standby
+     * finishing panel maintenance, Always-on, Always Ready, or Screen off.
+     * [label] is the server's name for the state.
+     */
+    data class Power(val on: Boolean, val label: String)
+
+    data class Status(val reach: Reach, val identity: Identity?, val power: Power?)
+
     private const val TIMEOUT_MS = 4000
 
-    /** Blocks; call off the main thread. Any HTTP answer counts, even a 401. */
-    fun answers(link: TvLink): Boolean {
-        val conn = try {
-            URL("${link.origin}/api/caps").openConnection() as HttpURLConnection
-        } catch (e: IOException) {
-            return false
-        }
+    /** powerOn waits on the TV before it replies. */
+    private const val CONTROL_TIMEOUT_MS = 15_000
+
+    /** Any HTTP answer counts, even a 401 for a wrong token. */
+    fun check(link: TvLink): Reach {
+        val conn = open("${link.origin}/api/caps", TIMEOUT_MS) ?: return Reach.NO_ANSWER
         return try {
-            conn.connectTimeout = TIMEOUT_MS
-            conn.readTimeout = TIMEOUT_MS
-            conn.instanceFollowRedirects = false
             conn.responseCode
-            true
+            Reach.ANSWERS
+        } catch (e: SSLException) {
+            // A self-signed certificate behind a reverse proxy, typically.
+            Reach.UNTRUSTED_CERT
         } catch (e: IOException) {
-            false
+            Reach.NO_ANSWER
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** Whether the TV answers and, when it does, what it says about itself. */
+    fun status(link: TvLink): Status {
+        val reach = check(link)
+        if (reach != Reach.ANSWERS) return Status(reach, null, null)
+        val stats = stats(link)
+        return Status(reach, stats?.let(::identityOf), stats?.let(::powerOf))
+    }
+
+    /**
+     * The MAC address of the interface the TV is using, and its Wake-on-LAN
+     * setting. Null when the TV does not answer, the token is wrong, or the
+     * server is too old to report a MAC.
+     */
+    fun identify(link: TvLink): Identity? = stats(link)?.let(::identityOf)
+
+    /**
+     * Asks the server to bring the TV out of standby: its own powerOn, which
+     * covers Active Standby, Always-on and Screen off. Null on success, or the
+     * server's reason, such as power actions being off in its config.
+     */
+    fun powerOn(link: TvLink): String? {
+        val conn = open("${link.origin}/api/control${tokenQuery(link)}", CONTROL_TIMEOUT_MS) ?: return ""
+        return try {
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            // The server takes JSON only, and refuses a foreign Origin; none is sent.
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.outputStream.use { it.write("""{"action":"powerOn"}""".toByteArray()) }
+            val code = conn.responseCode
+            val body = (if (code < 400) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val reply = try { JSONObject(body) } catch (e: JSONException) { null }
+            if (code == 200 && reply?.optBoolean("ok") == true) null else reply?.optString("error").orEmpty()
+        } catch (e: IOException) {
+            ""
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun stats(link: TvLink): JSONObject? {
+        val conn = open("${link.origin}/api/stats${tokenQuery(link)}", TIMEOUT_MS) ?: return null
+        return try {
+            if (conn.responseCode != 200) return null
+            JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+        } catch (e: IOException) {
+            null
+        } catch (e: JSONException) {
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun identityOf(stats: JSONObject): Identity? {
+        val mac = WakeOnLan.normaliseMac(stats.optString("mac")) ?: return null
+        return Identity(mac, if (stats.has("wakeOnLan")) stats.optBoolean("wakeOnLan") else null)
+    }
+
+    private fun powerOf(stats: JSONObject): Power? {
+        val p = stats.optJSONObject("powerState") ?: return null
+        val on = p.optBoolean("systemOn") && p.optBoolean("screenOn")
+        return Power(on, p.optString("label"))
+    }
+
+    private fun tokenQuery(link: TvLink) =
+        if (link.token.isEmpty()) "" else "?k=" + URLEncoder.encode(link.token, "UTF-8")
+
+    private fun open(url: String, timeoutMs: Int): HttpURLConnection? = try {
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = timeoutMs
+            readTimeout = timeoutMs
+            instanceFollowRedirects = false
+        }
+    } catch (e: IOException) {
+        null
     }
 }

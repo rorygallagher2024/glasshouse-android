@@ -1,9 +1,11 @@
 package org.glasshouse.android
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -13,6 +15,7 @@ import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -30,16 +33,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var store: TvStore
     private lateinit var list: RecyclerView
     private lateinit var empty: View
+    private lateinit var lanBanner: View
     private var adapter: TvAdapter? = null
 
-    private enum class Reach { CHECKING, ONLINE, OFFLINE }
+    private enum class Reach { CHECKING, ON, ASLEEP, ONLINE, OFFLINE, UNTRUSTED_CERT }
+
+    /** A TV's state as shown; [label] is the server's name for a dark TV's state. */
+    private data class Shown(val reach: Reach, val label: String? = null)
 
     /**
      * Last probe result by origin, not id, so an edited address starts over
      * as unknown. Read and written on the main thread only.
      */
-    private val reach = mutableMapOf<String, Reach>()
+    private val shown = mutableMapOf<String, Shown>()
     private val inFlight = mutableSetOf<String>()
+
     private val probes = Executors.newFixedThreadPool(4)
     private val main = Handler(Looper.getMainLooper())
 
@@ -51,6 +59,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val askLocalNetwork = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        // Refused for good: Android no longer shows the prompt, only Settings can change it.
+        if (!granted && !shouldShowRequestPermissionRationale(LocalNetwork.PERMISSION) && bannerTapped) {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+        }
+        bannerTapped = false
+        refresh()
+    }
+    private var bannerTapped = false
+
     private val scan = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents ?: return@registerForActivityResult
         val link = TvLink.parse(contents)
@@ -58,15 +76,27 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.scan_not_tv, Toast.LENGTH_LONG).show()
             return@registerForActivityResult
         }
-        // A TV already saved is matched by address: scanning it again is how a
-        // changed token gets in.
-        val known = store.byOrigin(link.origin)
-        if (known != null) {
-            store.save(known.copy(link = if (link.token.isEmpty()) known.link else link))
-            refresh()
-            Toast.makeText(this, getString(R.string.tv_updated, known.name), Toast.LENGTH_SHORT).show()
-        } else {
-            editTv(null, link)
+        // A saved TV is matched by address, or failing that by MAC, which is
+        // how a TV that has moved to a new address gets its entry updated
+        // rather than a second one.
+        probes.execute {
+            val identity = TvProbe.identify(link)
+            main.post {
+                if (isDestroyed) return@post
+                val known = store.byOrigin(link.origin) ?: identity?.let { store.byMac(it.mac) }
+                if (known != null) {
+                    val token = link.token.ifEmpty { if (known.link.origin == link.origin) known.link.token else "" }
+                    store.save(known.copy(
+                        link = TvLink(link.origin, token),
+                        mac = identity?.mac ?: known.mac,
+                        wakeOnLan = identity?.wakeOnLan ?: known.wakeOnLan,
+                    ))
+                    refresh()
+                    Toast.makeText(this, getString(R.string.tv_updated, known.name), Toast.LENGTH_SHORT).show()
+                } else {
+                    editTv(null, link, identity)
+                }
+            }
         }
     }
 
@@ -85,8 +115,14 @@ class MainActivity : AppCompatActivity() {
         store = TvStore(this)
         list = findViewById(R.id.list)
         empty = findViewById(R.id.empty)
+        lanBanner = findViewById(R.id.lan_banner)
         list.layoutManager = LinearLayoutManager(this)
         findViewById<View>(R.id.add).setOnClickListener { chooseHowToAdd() }
+        findViewById<View>(R.id.lan_allow).setOnClickListener {
+            bannerTapped = true
+            askLocalNetwork.launch(LocalNetwork.PERMISSION)
+        }
+        if (savedInstanceState == null && !LocalNetwork.granted(this)) askLocalNetwork.launch(LocalNetwork.PERMISSION)
     }
 
     override fun onResume() {
@@ -108,20 +144,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAll() {
+        if (!LocalNetwork.granted(this)) return
         for (tv in store.all()) {
             val link = tv.link
             // A probe gives up within 8 seconds, but one stuck in DNS can outlast a round.
             if (!inFlight.add(link.origin)) continue
             probes.execute {
-                val answers = TvProbe.answers(link)
+                val status = TvProbe.status(link)
                 main.post {
                     inFlight.remove(link.origin)
                     if (isDestroyed) return@post
-                    reach[link.origin] = if (answers) Reach.ONLINE else Reach.OFFLINE
+                    val power = status.power
+                    shown[link.origin] = when (status.reach) {
+                        // Without stats (a wrong token, say) the power state is unknown.
+                        TvProbe.Reach.ANSWERS -> when {
+                            power == null -> Shown(Reach.ONLINE)
+                            power.on -> Shown(Reach.ON)
+                            else -> Shown(Reach.ASLEEP, power.label)
+                        }
+                        TvProbe.Reach.NO_ANSWER -> Shown(Reach.OFFLINE)
+                        TvProbe.Reach.UNTRUSTED_CERT -> Shown(Reach.UNTRUSTED_CERT)
+                    }
+                    status.identity?.let { remember(tv.id, it) }
                     adapter?.statusChanged(link.origin)
                 }
             }
         }
+    }
+
+    /** Stores what a TV said about itself, against the entry it is now. */
+    private fun remember(id: String, identity: TvProbe.Identity) {
+        val current = store.get(id) ?: return
+        if (current.mac == identity.mac && current.wakeOnLan == identity.wakeOnLan) return
+        store.save(current.copy(mac = identity.mac, wakeOnLan = identity.wakeOnLan))
+        refresh()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -140,6 +196,7 @@ class MainActivity : AppCompatActivity() {
     private fun refresh() {
         val tvs = store.all()
         adapter = TvAdapter(tvs).also { list.adapter = it }
+        lanBanner.visibility = if (LocalNetwork.granted(this)) View.GONE else View.VISIBLE
         // Covers a TV just added or edited; already-running probes are skipped.
         checkAll()
         empty.visibility = if (tvs.isEmpty()) View.VISIBLE else View.GONE
@@ -150,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.tv_add)
             .setItems(choices) { _, which ->
-                if (which == 0) startScan() else editTv(null, null)
+                if (which == 0) startScan() else editTv(null, null, null)
             }
             .show()
     }
@@ -162,8 +219,11 @@ class MainActivity : AppCompatActivity() {
             .setBeepEnabled(false))
     }
 
-    /** Edits [tv], or adds a new TV prefilled from [scanned] when [tv] is null. */
-    private fun editTv(tv: Tv?, scanned: TvLink?) {
+    /**
+     * Edits [tv], or adds a new TV prefilled from [scanned] when [tv] is null.
+     * [identity] is what a scanned TV already said about itself.
+     */
+    private fun editTv(tv: Tv?, scanned: TvLink?, identity: TvProbe.Identity?) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_tv, null)
         val name = view.findViewById<TextInputEditText>(R.id.name)
         val address = view.findViewById<TextInputEditText>(R.id.address)
@@ -194,12 +254,43 @@ class MainActivity : AppCompatActivity() {
                 }
                 val link = TvLink(parsed.origin, token.text.toString().trim().ifEmpty { parsed.token })
                 val label = name.text.toString().trim().ifEmpty { getString(R.string.tv_default_name, link.label) }
-                store.save(Tv(tv?.id ?: TvStore.newId(), label, link))
+                val saved = Tv(
+                    id = tv?.id ?: TvStore.newId(),
+                    name = label,
+                    link = link,
+                    mac = identity?.mac ?: tv?.mac.takeIf { tv?.link?.origin == link.origin },
+                    wakeOnLan = identity?.wakeOnLan ?: tv?.wakeOnLan,
+                )
+                store.save(saved)
                 refresh()
                 dialog.dismiss()
+                if (tv == null) mergeIfKnown(saved)
             }
         }
         dialog.show()
+    }
+
+    /**
+     * A TV just added by address may be one already in the list under an old
+     * address. Once it answers with its MAC, the older entry takes the new
+     * address and keeps its name; the new entry goes.
+     */
+    private fun mergeIfKnown(added: Tv) {
+        probes.execute {
+            val identity = added.mac?.let { TvProbe.Identity(it, added.wakeOnLan) } ?: TvProbe.identify(added.link)
+            main.post {
+                if (isDestroyed || identity == null) return@post
+                val older = store.all().firstOrNull { it.id != added.id && it.mac == identity.mac }
+                if (older == null) {
+                    remember(added.id, identity)
+                    return@post
+                }
+                store.save(older.copy(link = added.link, wakeOnLan = identity.wakeOnLan ?: older.wakeOnLan))
+                store.remove(added.id)
+                refresh()
+                Toast.makeText(this, getString(R.string.tv_updated, older.name), Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun confirmRemove(tv: Tv) {
@@ -213,9 +304,10 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun open(tv: Tv) {
+    private fun open(tv: Tv, wake: Boolean = false) {
         startActivity(Intent(this, DashboardActivity::class.java)
-            .putExtra(DashboardActivity.EXTRA_TV_ID, tv.id))
+            .putExtra(DashboardActivity.EXTRA_TV_ID, tv.id)
+            .putExtra(DashboardActivity.EXTRA_WAKE, wake))
     }
 
     private inner class TvAdapter(private val tvs: List<Tv>) : RecyclerView.Adapter<TvHolder>() {
@@ -234,26 +326,38 @@ class MainActivity : AppCompatActivity() {
     private inner class TvHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val name = view.findViewById<TextView>(R.id.name)
         private val address = view.findViewById<TextView>(R.id.address)
+        private val power = view.findViewById<ImageButton>(R.id.power)
         private val more = view.findViewById<ImageButton>(R.id.more)
 
         fun bind(tv: Tv) {
             name.text = tv.name
-            val state = reach[tv.link.origin] ?: Reach.CHECKING
-            val (label, dot) = when (state) {
-                Reach.ONLINE -> R.string.tv_online to R.drawable.dot_online
-                Reach.OFFLINE -> R.string.tv_offline to R.drawable.dot_offline
-                Reach.CHECKING -> R.string.tv_checking to R.drawable.dot_checking
+            val state = shown[tv.link.origin] ?: Shown(Reach.CHECKING)
+            val (label, dot) = when (state.reach) {
+                Reach.ON -> getString(R.string.tv_on) to R.drawable.dot_online
+                Reach.ASLEEP -> state.label.orEmpty().ifEmpty { getString(R.string.tv_standby) } to R.drawable.dot_asleep
+                Reach.ONLINE -> getString(R.string.tv_online) to R.drawable.dot_online
+                Reach.OFFLINE -> getString(R.string.tv_offline) to R.drawable.dot_offline
+                Reach.UNTRUSTED_CERT -> getString(R.string.tv_untrusted) to R.drawable.dot_offline
+                Reach.CHECKING -> getString(R.string.tv_checking) to R.drawable.dot_checking
             }
-            address.text = getString(R.string.tv_status_line, getString(label), tv.link.label)
+            address.text = getString(R.string.tv_status_line, label, tv.link.label)
             address.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
             itemView.setOnClickListener { open(tv) }
+
+            // A dark TV that answers is turned on by its server; one that does
+            // not, by Wake-on-LAN, which needs its MAC.
+            val canTurnOn = state.reach == Reach.ASLEEP || (state.reach == Reach.OFFLINE && tv.mac != null)
+            power.visibility = if (canTurnOn) View.VISIBLE else View.GONE
+            power.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
+            power.setOnClickListener { open(tv, wake = true) }
+
             more.contentDescription = getString(R.string.tv_more, tv.name)
             more.setOnClickListener {
                 val menu = PopupMenu(this@MainActivity, more)
                 menu.inflate(R.menu.tv_item)
                 menu.setOnMenuItemClickListener { item ->
                     when (item.itemId) {
-                        R.id.action_edit -> editTv(tv, null)
+                        R.id.action_edit -> editTv(tv, null, null)
                         R.id.action_remove -> confirmRemove(tv)
                     }
                     true

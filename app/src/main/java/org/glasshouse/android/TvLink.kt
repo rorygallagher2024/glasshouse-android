@@ -14,6 +14,9 @@ data class TvLink(val origin: String, val token: String) {
     /** The host and port as shown in the TV list, without the scheme. */
     val label: String get() = origin.substringAfter("://")
 
+    /** The host alone: an IP address or a name. */
+    val host: String get() = label.substringBeforeLast(':').removePrefix("[").removeSuffix("]")
+
     /**
      * The dashboard page. The token goes in `k`, which the dashboard keeps in
      * its own storage and takes back out of the address bar.
