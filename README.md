@@ -17,6 +17,14 @@ light grey to match the phone's theme. On a TV's dashboard the header and the
 navigation bar take the page's own background, so they follow the dashboard's
 theme setting too.
 
+<p align="center">
+  <img src="play-store/phone/screenshot-1-intro.png" width="160" alt="Introduction: the TV needs the Glasshouse server">
+  <img src="play-store/phone/screenshot-2-tvs.png" width="160" alt="The TV list, with LG C2 online">
+  <img src="play-store/phone/screenshot-3-dashboard.png" width="160" alt="A TV's dashboard, Control tab, full screen">
+  <img src="play-store/phone/screenshot-4-metrics.png" width="160" alt="The Metrics tab">
+  <img src="play-store/phone/screenshot-5-oled-care.png" width="160" alt="The OLED Care tab">
+</p>
+
 ## Adding a TV
 
 Scanning any QR code on the TV's dashboard adds that TV, token included: the
@@ -88,6 +96,13 @@ Pushing a tag `v<versionName>` builds the bundle and an APK (named
 to a GitHub release; the tag must match `versionName`, and `versionCode` must
 go up with every upload to Play. Running the workflow by hand builds the same
 files as an artifact without a release.
+
+## Store listing
+
+`play-store/` holds the Play listing's graphics: the 512 px icon (from
+`icon.svg`), the 1024×500 feature graphic (rendered from
+`feature-graphic.html`, which uses the app's own fonts), and the phone
+screenshots at 1080×2160, the longest Play accepts at that width.
 
 ## Platform notes
 
