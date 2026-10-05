@@ -28,6 +28,7 @@ class AboutActivity : AppCompatActivity() {
         addLink(links, R.string.about_source_app, R.string.url_source_app)
         addLink(links, R.string.about_source_server, R.string.url_source_server)
         addLink(links, R.string.about_docs, R.string.url_docs)
+        addLink(links, R.string.about_issues, R.string.url_issues)
         addLink(links, R.string.about_privacy, R.string.url_privacy)
         addRow(links, getString(R.string.about_licences), getString(R.string.about_licences_detail), external = false) {
             MaterialAlertDialogBuilder(this)

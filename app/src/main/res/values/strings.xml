@@ -18,6 +18,12 @@
     <string name="tv_default_name">TV at %1$s</string>
     <string name="tv_online">Online</string>
     <string name="tv_offline">Offline</string>
+    <string name="tv_untrusted">Certificate not trusted</string>
+    <string name="tv_turn_on">Turn on</string>
+    <string name="tv_turn_on_named">Turn on %1$s</string>
+    <string name="tv_more_generic">More options</string>
+    <string name="lan_needed">Glasshouse needs permission to reach TVs on the local network.</string>
+    <string name="lan_allow">Allow</string>
     <string name="tv_checking">Checking</string>
     <!-- Status, then the TV's address: "Online · 192.168.1.20:8080". -->
     <string name="tv_status_line">%1$s · %2$s</string>
@@ -30,7 +36,12 @@
 
     <string name="dash_back">Back to TVs</string>
     <string name="dash_connecting">Connecting to %1$s…</string>
-    <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network.</string>
+    <string name="dash_unreachable">%1$s isn\'t answering at %2$s.\n\nThe TV may be off or asleep, or on another network. If its address has changed, scanning its QR code again updates it.</string>
+    <string name="dash_untrusted">%1$s at %2$s uses a certificate this phone doesn\'t trust, such as a self-signed one.\n\nUse the TV\'s http:// address instead, or a certificate the phone trusts.</string>
+    <string name="dash_waking">Turning on %1$s…</string>
+    <string name="dash_wake_failed">%1$s didn\'t turn on.\n\nWaking a TV needs \"Turn on via Wi-Fi\" (\"Mobile TV On\" on older models) switched on in its settings, and the TV in standby rather than unplugged.</string>
+    <string name="dash_wake_setting_off">%1$s didn\'t turn on.\n\nIts \"Turn on via Wi-Fi\" setting was off when it was last seen, so it doesn\'t listen for the phone. Switch it on in the TV\'s settings, under General or Connection.</string>
+    <string name="dash_lan_denied">Glasshouse doesn\'t have permission to reach devices on the local network. Allow it from the TV list, or in Android\'s settings for the app.</string>
     <string name="dash_retry">Try again</string>
     <string name="dash_no_app">No app on this phone can open that link</string>
     <string name="intro_lead">The Glasshouse dashboard for LG webOS TVs, on the phone.</string>
@@ -39,7 +50,7 @@
     <string name="intro_add_title">Adding a TV</string>
     <string name="intro_add">With Glasshouse running, scan any QR code on the TV\'s dashboard, or enter the TV\'s address.</string>
     <string name="intro_network_title">Same network</string>
-    <string name="intro_network">The phone and the TV need to be on the same network.</string>
+    <string name="intro_network">The phone and the TV need to be on the same network. Android 17 and later ask to let the app reach devices on it.</string>
     <string name="intro_docs">Installation guide</string>
     <string name="intro_start">Get started</string>
 
@@ -50,6 +61,7 @@
     <string name="about_source_server">Glasshouse server and dashboard</string>
     <string name="about_docs">Documentation</string>
     <string name="about_privacy">Privacy policy</string>
+    <string name="about_issues">Report a problem</string>
     <string name="about_licences">Open-source licences</string>
     <string name="about_licences_detail">Fonts and libraries used by the app</string>
     <string name="about_licences_text">Glasshouse for Android: MIT License.\n\nManrope and Outfit fonts: SIL Open Font License 1.1.\n\nAndroidX, Material Components for Android, ZXing and ZXing Android Embedded: Apache License 2.0.</string>

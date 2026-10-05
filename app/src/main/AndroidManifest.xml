@@ -2,14 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The phone's own subnet, for the Wake-on-LAN broadcast address. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 17: needed to reach anything on the LAN, which is every TV. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <!-- The scanner asks for the camera itself; a phone without one can still
          add a TV by address. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- allowBackup is off because the saved TVs carry their tokens. -->
+    <!-- Backup and phone-to-phone transfer are off because the saved TVs
+         carry their tokens. -->
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"

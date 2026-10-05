@@ -3,8 +3,8 @@
 A phone app for [Glasshouse](https://github.com/rorygallagher2024/lg-webos-dashboard),
 the dashboard for rooted LG webOS TVs. It keeps a list of TVs and opens each
 one's web dashboard full screen. The dashboard itself is the same page a browser gets;
-the app adds the list, switching between TVs, and the file picker the
-sideload tab needs.
+the app adds the list with each TV's online status, turning a TV on, and the
+file picker the sideload tab needs. It runs on Android 10 and later.
 
 On first launch an introduction explains that the TV needs the Glasshouse
 server installed, with a link to the
@@ -24,8 +24,28 @@ codes are links to the web dashboard and carry `k=<token>` when one is set.
 Scanning a TV already in the list updates its token. A TV can also be added by
 address; a bare host gets the server's default port, 8080.
 
+Once a TV answers, the app keeps the MAC address it reports in `/api/stats`.
+A TV that has moved to a new address is recognised by it: scanning its QR code
+again, or adding it by the new address, updates the entry already in the list.
+A fixed address for the TV on the router avoids the move altogether.
+
 The list, tokens included, stays in the app's private storage and is left out
-of Android backups.
+of Android backups and phone-to-phone transfers.
+
+## Turning a TV on
+
+An offline TV whose MAC is known gets a power button in the list, and a Turn
+on button where its dashboard would be. Both send Wake-on-LAN to the phone's
+subnet broadcast, the all-ones broadcast and the TV's last address, every five
+seconds for up to a minute, until the server answers. The TV only listens with
+"Turn on via Wi-Fi" ("Mobile TV On" on older models) switched on; the app
+reads that setting while the TV is on and says so when it is off.
+
+## Local network permission
+
+Android 17 asks before an app reaches devices on the local network. The app
+asks on launch; refused, the list shows a banner to ask again, which opens the
+app's settings once Android stops showing the prompt.
 
 ## Building
 
@@ -57,7 +77,8 @@ keyPassword=…
 The `release` workflow does the same on GitHub, from the secrets
 `UPLOAD_KEYSTORE_BASE64` (the keystore, base64-encoded),
 `UPLOAD_KEYSTORE_PASSWORD`, `UPLOAD_KEY_ALIAS` and `UPLOAD_KEY_PASSWORD`.
-Pushing a tag `v<versionName>` builds the bundle and an APK and attaches both
+Pushing a tag `v<versionName>` builds the bundle and an APK (named
+`-sideload.apk`) and attaches both
 to a GitHub release; the tag must match `versionName`, and `versionCode` must
 go up with every upload to Play. Running the workflow by hand builds the same
 files as an artifact without a release.
@@ -75,6 +96,11 @@ A TV's dashboard is full screen: the system bars are hidden until swiped in
 from an edge. The only control is a back button in the strip beside the
 camera cutout, space the page could not use; on a screen without a cutout the
 strip is the button's height. Switching TVs is done from the list.
+
+Pulling down at the top of a dashboard reloads it. A TV behind HTTPS with a
+certificate the phone does not trust is reported as such rather than as
+offline; the page is never loaded past a certificate error, since it would
+carry the token.
 
 WebView timers are paused while the app is in the background, which stops the
 dashboard's polling.

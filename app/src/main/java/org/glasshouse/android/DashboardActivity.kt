@@ -5,11 +5,14 @@ import android.content.ActivityNotFoundException
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -27,6 +30,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import java.util.concurrent.Executors
 
@@ -43,12 +47,17 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var errorView: View
     private lateinit var errorText: TextView
     private lateinit var retry: View
+    private lateinit var wakeButton: View
+    private lateinit var refresh: SwipeRefreshLayout
 
     private val probes = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
-    /** Bumped by every load, so a probe or timeout from an earlier one is ignored. */
-    private var loadId = 0
+    /**
+     * Bumped by every load, so a probe or timeout from an earlier one is
+     * ignored. Read by the wake loop on the probe thread.
+     */
+    @Volatile private var loadId = 0
 
     /** Gives up on a page that has started but not arrived. */
     private val loadTimeout = Runnable {
@@ -87,6 +96,10 @@ class DashboardActivity : AppCompatActivity() {
         errorText = findViewById(R.id.error_text)
         retry = findViewById(R.id.retry)
         retry.setOnClickListener { load() }
+        wakeButton = findViewById(R.id.wake)
+        wakeButton.setOnClickListener { wake() }
+        refresh = findViewById(R.id.refresh)
+        refresh.setOnRefreshListener { web.reload() }
 
         setUpWebView()
         paintBars(getColor(R.color.bg))
@@ -100,7 +113,7 @@ class DashboardActivity : AppCompatActivity() {
                 }
             }
         })
-        load()
+        if (intent.getBooleanExtra(EXTRA_WAKE, false) && tv.mac != null) wake() else load()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -138,6 +151,7 @@ class DashboardActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 progress.visibility = View.INVISIBLE
+                refresh.isRefreshing = false
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
             }
 
@@ -146,6 +160,14 @@ class DashboardActivity : AppCompatActivity() {
                     main.removeCallbacks(loadTimeout)
                     showError()
                 }
+            }
+
+            // Never proceeds past a bad certificate: the page would carry the token.
+            @SuppressLint("WebViewClientOnReceivedSslError")
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                handler.cancel()
+                main.removeCallbacks(loadTimeout)
+                showUntrusted()
             }
         }
         web.webChromeClient = object : WebChromeClient() {
@@ -185,41 +207,106 @@ class DashboardActivity : AppCompatActivity() {
         val id = ++loadId
         val target = tv
         main.removeCallbacks(loadTimeout)
+        if (!LocalNetwork.granted(this)) {
+            showStatus(getString(R.string.dash_lan_denied), canRetry = true)
+            return
+        }
         showStatus(getString(R.string.dash_connecting, target.name), canRetry = false)
-        progress.isIndeterminate = true
-        progress.visibility = View.VISIBLE
+        showBusy()
         probes.execute {
-            val answers = TvProbe.answers(target.link)
+            val result = TvProbe.check(target.link)
             main.post {
                 if (id != loadId || isDestroyed) return@post
-                progress.visibility = View.INVISIBLE
-                progress.isIndeterminate = false
-                if (answers) {
-                    web.loadUrl(target.link.dashboardUrl())
-                    main.postDelayed(loadTimeout, PAGE_TIMEOUT_MS)
-                } else {
-                    showError()
+                when (result) {
+                    TvProbe.Reach.ANSWERS -> {
+                        progress.visibility = View.INVISIBLE
+                        progress.isIndeterminate = false
+                        web.loadUrl(target.link.dashboardUrl())
+                        main.postDelayed(loadTimeout, PAGE_TIMEOUT_MS)
+                    }
+                    TvProbe.Reach.NO_ANSWER -> showError()
+                    TvProbe.Reach.UNTRUSTED_CERT -> showUntrusted()
                 }
             }
         }
     }
 
+    /**
+     * Sends Wake-on-LAN and waits for the TV's server to answer, resending
+     * the packet every few seconds in case one is missed. A TV coming out of
+     * standby takes a while to bring its network and the server back.
+     */
+    private fun wake() {
+        val mac = tv.mac ?: return load()
+        val id = ++loadId
+        val target = tv
+        val appContext = applicationContext
+        main.removeCallbacks(loadTimeout)
+        showStatus(getString(R.string.dash_waking, target.name), canRetry = false)
+        showBusy()
+        probes.execute {
+            val deadline = SystemClock.elapsedRealtime() + WAKE_TIMEOUT_MS
+            var nextSend = 0L
+            var answered = false
+            while (!answered && id == loadId && SystemClock.elapsedRealtime() < deadline) {
+                val now = SystemClock.elapsedRealtime()
+                if (now >= nextSend) {
+                    WakeOnLan.send(appContext, mac, target.link.host)
+                    nextSend = now + WAKE_RESEND_MS
+                }
+                answered = TvProbe.check(target.link) == TvProbe.Reach.ANSWERS
+                if (!answered) {
+                    try {
+                        Thread.sleep(WAKE_POLL_MS)
+                    } catch (e: InterruptedException) {
+                        return@execute
+                    }
+                }
+            }
+            main.post {
+                if (id != loadId || isDestroyed) return@post
+                if (answered) load() else showWakeFailed()
+            }
+        }
+    }
+
+    private fun showBusy() {
+        progress.isIndeterminate = true
+        progress.visibility = View.VISIBLE
+    }
+
     private fun showPage() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
+        refresh.isEnabled = true
     }
 
-    private fun showStatus(text: String, canRetry: Boolean) {
+    private fun showStatus(text: String, canRetry: Boolean, canWake: Boolean = false) {
         paintBars(getColor(R.color.bg))
         web.visibility = View.INVISIBLE
+        refresh.isRefreshing = false
+        refresh.isEnabled = false
         errorText.text = text
         retry.visibility = if (canRetry) View.VISIBLE else View.GONE
+        wakeButton.visibility = if (canWake) View.VISIBLE else View.GONE
         errorView.visibility = View.VISIBLE
     }
 
     private fun showError() {
         progress.visibility = View.INVISIBLE
-        showStatus(getString(R.string.dash_unreachable, tv.name, tv.link.label), canRetry = true)
+        showStatus(getString(R.string.dash_unreachable, tv.name, tv.link.label), canRetry = true, canWake = tv.mac != null)
+    }
+
+    private fun showUntrusted() {
+        progress.visibility = View.INVISIBLE
+        showStatus(getString(R.string.dash_untrusted, tv.name, tv.link.label), canRetry = true)
+    }
+
+    private fun showWakeFailed() {
+        progress.visibility = View.INVISIBLE
+        // The TV's own setting, as last read: off means no packet will wake it.
+        val text = if (tv.wakeOnLan == false) R.string.dash_wake_setting_off else R.string.dash_wake_failed
+        showStatus(getString(text, tv.name), canRetry = true, canWake = true)
     }
 
     /**
@@ -264,6 +351,8 @@ class DashboardActivity : AppCompatActivity() {
         web.setBackgroundColor(background)
         back.setColorFilter(fg)
         progress.setIndicatorColor(fg)
+        refresh.setColorSchemeColors(fg)
+        refresh.setProgressBackgroundColorSchemeColor(background)
     }
 
     private inner class PageBridge {
@@ -309,6 +398,13 @@ class DashboardActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_TV_ID = "tv_id"
+
+        /** Set by the list's power button: wake the TV rather than just connect. */
+        const val EXTRA_WAKE = "wake"
+
+        private const val WAKE_TIMEOUT_MS = 60_000L
+        private const val WAKE_RESEND_MS = 5_000L
+        private const val WAKE_POLL_MS = 1_000L
 
         /** For a server that answered the probe but then stalls on the page. */
         private const val PAGE_TIMEOUT_MS = 15_000L

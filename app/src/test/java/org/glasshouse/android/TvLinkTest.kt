@@ -59,4 +59,10 @@ class TvLinkTest {
     fun labelDropsTheScheme() {
         assertEquals("192.168.1.20:8080", TvLink("http://192.168.1.20:8080", "").label)
     }
+
+    @Test fun hostDropsPortAndScheme() {
+        assertEquals("192.168.1.20", TvLink.parse("192.168.1.20")!!.host)
+        assertEquals("lgtv.local", TvLink.parse("https://lgtv.local:8443/?k=x")!!.host)
+        assertEquals("fe80::1", TvLink.parse("http://[fe80::1]:8080/")!!.host)
+    }
 }
