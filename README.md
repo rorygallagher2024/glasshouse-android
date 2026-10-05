@@ -38,6 +38,30 @@ workflow builds the same on every push and pull request and keeps the APK as an 
 debug key, so a newer one only installs after the older one is uninstalled,
 which clears its list.
 
+## Releasing
+
+Release builds are signed with the Play upload key. Locally, a
+`keystore.properties` beside this README names it (the file and any keystore
+are gitignored):
+
+```properties
+storeFile=/path/to/upload.jks
+storePassword=…
+keyAlias=upload
+keyPassword=…
+```
+
+`./gradlew bundleRelease` then writes the bundle for Play to
+`app/build/outputs/bundle/release/`.
+
+The `release` workflow does the same on GitHub, from the secrets
+`UPLOAD_KEYSTORE_BASE64` (the keystore, base64-encoded),
+`UPLOAD_KEYSTORE_PASSWORD`, `UPLOAD_KEY_ALIAS` and `UPLOAD_KEY_PASSWORD`.
+Pushing a tag `v<versionName>` builds the bundle and an APK and attaches both
+to a GitHub release; the tag must match `versionName`, and `versionCode` must
+go up with every upload to Play. Running the workflow by hand builds the same
+files as an artifact without a release.
+
 ## Platform notes
 
 The dashboard is plain HTTP on a LAN address, so the network security config

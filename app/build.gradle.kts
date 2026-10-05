@@ -1,22 +1,51 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
 
+/*
+ * The upload key for Play. Locally it is named in keystore.properties (kept
+ * out of git); the release workflow passes the same four values as
+ * environment variables. Without either, a release build is left unsigned.
+ */
+val keystoreProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(property: String, env: String): String? =
+    keystoreProps.getProperty(property) ?: System.getenv(env)?.takeIf { it.isNotEmpty() }
+
+val uploadStoreFile = signingValue("storeFile", "GLASSHOUSE_KEYSTORE")
+
 android {
     namespace = "org.glasshouse.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "org.glasshouse.android"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        if (uploadStoreFile != null) {
+            create("upload") {
+                storeFile = rootProject.file(uploadStoreFile)
+                storePassword = signingValue("storePassword", "GLASSHOUSE_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "GLASSHOUSE_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "GLASSHOUSE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("upload")
         }
     }
 
