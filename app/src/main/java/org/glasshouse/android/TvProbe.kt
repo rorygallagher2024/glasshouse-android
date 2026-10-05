@@ -18,8 +18,11 @@ object TvProbe {
 
     enum class Reach { ANSWERS, NO_ANSWER, UNTRUSTED_CERT }
 
-    /** What /api/stats says about the TV itself. */
-    data class Identity(val mac: String, val wakeOnLan: Boolean?)
+    /**
+     * What /api/stats says about the TV itself. [name] is the TV's own, such
+     * as "LG C2 OLED", for naming a TV found on the network.
+     */
+    data class Identity(val mac: String, val wakeOnLan: Boolean?, val name: String? = null)
 
     /**
      * The server's power state. A TV can answer while dark: Active Standby
@@ -91,6 +94,30 @@ object TvProbe {
         }
     }
 
+    /**
+     * Whether a Glasshouse server answers at [link] with its token: true for
+     * a 200 from /api/caps, false for its 401, null for anything else (no
+     * answer, or not Glasshouse). The 401 still names it: "bad or missing token".
+     */
+    fun tokenAccepted(link: TvLink, timeoutMs: Int): Boolean? {
+        val conn = open("${link.origin}/api/caps${tokenQuery(link)}", timeoutMs) ?: return null
+        return try {
+            when (conn.responseCode) {
+                200 -> JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).optBoolean("ok")
+                    .takeIf { it }
+                401 -> conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    .takeIf { it.contains("token") }?.let { false }
+                else -> null
+            }
+        } catch (e: IOException) {
+            null
+        } catch (e: JSONException) {
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private fun stats(link: TvLink): JSONObject? {
         val conn = open("${link.origin}/api/stats${tokenQuery(link)}", TIMEOUT_MS) ?: return null
         return try {
@@ -107,7 +134,8 @@ object TvProbe {
 
     private fun identityOf(stats: JSONObject): Identity? {
         val mac = WakeOnLan.normaliseMac(stats.optString("mac")) ?: return null
-        return Identity(mac, if (stats.has("wakeOnLan")) stats.optBoolean("wakeOnLan") else null)
+        val name = stats.optJSONObject("device")?.optString("name").orEmpty().ifEmpty { null }
+        return Identity(mac, if (stats.has("wakeOnLan")) stats.optBoolean("wakeOnLan") else null, name)
     }
 
     private fun powerOf(stats: JSONObject): Power? {

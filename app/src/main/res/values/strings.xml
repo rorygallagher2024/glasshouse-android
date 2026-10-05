@@ -6,6 +6,12 @@
     <string name="tv_add">Add a TV</string>
     <string name="tv_add_scan">Scan the TV\'s QR code</string>
     <string name="tv_add_manual">Enter the address</string>
+    <string name="tv_add_find">Find TVs on this network</string>
+    <string name="tv_moved">Found %1$s at its new address, %2$s</string>
+    <string name="find_searching">Looking for TVs…</string>
+    <string name="find_found">Glasshouse TVs on this network</string>
+    <string name="find_none_title">No TVs found</string>
+    <string name="find_none">No Glasshouse TV that isn\'t already in the list answered on this network. A TV that is off or asleep doesn\'t answer; scanning its QR code adds it once it\'s on.</string>
     <string name="tv_edit">Edit</string>
     <string name="tv_remove">Remove</string>
     <string name="tv_remove_confirm">Remove %1$s from this phone? The TV itself is not changed.</string>

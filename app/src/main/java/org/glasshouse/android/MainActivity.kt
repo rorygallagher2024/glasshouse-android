@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.Menu
@@ -21,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.journeyapps.barcodescanner.ScanContract
@@ -49,6 +51,11 @@ class MainActivity : AppCompatActivity() {
     private val inFlight = mutableSetOf<String>()
 
     private val probes = Executors.newFixedThreadPool(4)
+
+    /** Searches run apart from the probes: one takes several seconds. */
+    private val searches = Executors.newSingleThreadExecutor()
+    private var searching = false
+    private var lastRefind = 0L
     private val main = Handler(Looper.getMainLooper())
 
     /** Rechecks while the list is on screen, so a TV turned on or off shows it. */
@@ -140,6 +147,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         main.removeCallbacks(recheck)
         probes.shutdownNow()
+        searches.shutdownNow()
         super.onDestroy()
     }
 
@@ -167,7 +175,37 @@ class MainActivity : AppCompatActivity() {
                     }
                     status.identity?.let { remember(tv.id, it) }
                     adapter?.statusChanged(link.origin)
+                    if (status.reach == TvProbe.Reach.NO_ANSWER && tv.mac != null) refindMoved()
                 }
+            }
+        }
+    }
+
+    /**
+     * A saved TV that stops answering may only have a new address from the
+     * router. An SSDP search, at most every two minutes while one is offline,
+     * finds the webOS TVs that are on; one whose MAC matches a saved TV takes
+     * the new address, keeping its name and token.
+     */
+    private fun refindMoved() {
+        val now = SystemClock.elapsedRealtime()
+        if (searching || now - lastRefind < REFIND_MS) return
+        searching = true
+        lastRefind = now
+        val tokens = store.all().map { it.link.token }
+        searches.execute {
+            val found = Discovery.find(applicationContext, tokens, sweep = false)
+            main.post {
+                searching = false
+                if (isDestroyed) return@post
+                for (f in found) {
+                    val mac = f.identity?.mac ?: continue
+                    val moved = store.byMac(mac) ?: continue
+                    if (moved.link.origin == f.link.origin) continue
+                    store.save(moved.copy(link = TvLink(f.link.origin, moved.link.token)))
+                    Toast.makeText(this, getString(R.string.tv_moved, moved.name, f.link.label), Toast.LENGTH_LONG).show()
+                }
+                refresh()
             }
         }
     }
@@ -203,12 +241,74 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun chooseHowToAdd() {
-        val choices = arrayOf(getString(R.string.tv_add_scan), getString(R.string.tv_add_manual))
+        val choices = arrayOf(
+            getString(R.string.tv_add_scan),
+            getString(R.string.tv_add_find),
+            getString(R.string.tv_add_manual),
+        )
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.tv_add)
             .setItems(choices) { _, which ->
-                if (which == 0) startScan() else editTv(null, null, null)
+                when (which) {
+                    0 -> startScan()
+                    1 -> findTvs()
+                    else -> editTv(null, null, null)
+                }
             }
+            .show()
+    }
+
+    /** Searches the network and offers the Glasshouse TVs not in the list yet. */
+    private fun findTvs() {
+        if (!LocalNetwork.granted(this)) {
+            bannerTapped = true
+            askLocalNetwork.launch(LocalNetwork.PERMISSION)
+            return
+        }
+        val bar = LinearProgressIndicator(this).apply {
+            isIndeterminate = true
+            val pad = (24 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+        val waiting = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.find_searching)
+            .setView(bar)
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+        val tokens = store.all().map { it.link.token }
+        searches.execute {
+            val found = Discovery.find(applicationContext, tokens, sweep = true)
+            main.post {
+                if (isDestroyed || !waiting.isShowing) return@post
+                waiting.dismiss()
+                val saved = store.all()
+                val fresh = found.filter { f ->
+                    saved.none { it.link.origin == f.link.origin || (f.identity != null && it.mac == f.identity.mac) }
+                }.sortedBy { it.link.label }
+                showFound(fresh)
+            }
+        }
+    }
+
+    private fun showFound(found: List<Discovery.Found>) {
+        if (found.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.find_none_title)
+                .setMessage(R.string.find_none)
+                .setPositiveButton(R.string.close, null)
+                .show()
+            return
+        }
+        val rows = found.map { f ->
+            f.identity?.name?.let { getString(R.string.tv_status_line, it, f.link.label) } ?: f.link.label
+        }.toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.find_found)
+            .setItems(rows) { _, which ->
+                val f = found[which]
+                editTv(null, f.link, f.identity)
+            }
+            .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
@@ -231,7 +331,7 @@ class MainActivity : AppCompatActivity() {
         val token = view.findViewById<TextInputEditText>(R.id.token)
 
         val start = tv?.link ?: scanned
-        name.setText(tv?.name ?: start?.let { getString(R.string.tv_default_name, it.label) } ?: "")
+        name.setText(tv?.name ?: identity?.name ?: start?.let { getString(R.string.tv_default_name, it.label) } ?: "")
         address.setText(start?.label ?: "")
         token.setText(start?.token ?: "")
 
@@ -369,5 +469,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val RECHECK_MS = 15_000L
+        private const val REFIND_MS = 120_000L
     }
 }
