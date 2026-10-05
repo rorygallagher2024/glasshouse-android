@@ -358,7 +358,9 @@ class MainActivity : AppCompatActivity() {
                     id = tv?.id ?: TvStore.newId(),
                     name = label,
                     link = link,
-                    mac = identity?.mac ?: tv?.mac.takeIf { tv?.link?.origin == link.origin },
+                    // Kept through an address change: it is what finds the TV again,
+                    // and a different TV at the new address replaces it when it answers.
+                    mac = identity?.mac ?: tv?.mac,
                     wakeOnLan = identity?.wakeOnLan ?: tv?.wakeOnLan,
                 )
                 store.save(saved)
