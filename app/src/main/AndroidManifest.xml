@@ -25,6 +25,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".IntroActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
         <!-- Handles rotation itself so the WebView, and the dashboard in it,
              are not torn down and reloaded. -->
         <activity

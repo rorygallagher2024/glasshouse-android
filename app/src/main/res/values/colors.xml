@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The dashboard's light theme (server/assets/ui/ui.css): black on #f5f5f5 at
+     opacity steps, no accent hue. values-night holds the dark one. -->
 <resources>
     <color name="logo_background">#000000</color>
+
+    <color name="bg">#F5F5F5</color>
+    <color name="fg">#000000</color>
+    <color name="on_fg">#FFFFFF</color>
+    <color name="fg80">#CC000000</color>
+    <color name="fg60">#99000000</color>
+    <color name="edge">#73000000</color>
+    <color name="fg12">#1F000000</color>
+    <color name="red">#D42020</color>
+
+    <color name="surface_lowest">#FFFFFF</color>
+    <color name="surface_low">#FAFAFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_high">#FFFFFF</color>
+    <color name="surface_highest">#EBEBEB</color>
 </resources>

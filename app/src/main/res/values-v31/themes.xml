@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Glasshouse" parent="Base.Theme.Glasshouse">
+        <item name="android:windowSplashScreenBackground">@color/logo_background</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/logo_background</item>
+    </style>
+</resources>

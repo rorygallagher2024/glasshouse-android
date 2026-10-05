@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dashboard's dark theme: white on pure black. -->
+<resources>
+    <color name="bg">#000000</color>
+    <color name="fg">#FFFFFF</color>
+    <color name="on_fg">#000000</color>
+    <color name="fg80">#CCFFFFFF</color>
+    <color name="fg60">#99FFFFFF</color>
+    <color name="edge">#66FFFFFF</color>
+    <color name="fg12">#1FFFFFFF</color>
+    <color name="red">#FF3030</color>
+
+    <color name="surface_lowest">#000000</color>
+    <color name="surface_low">#0D0D0D</color>
+    <color name="surface">#141414</color>
+    <color name="surface_high">#1A1A1A</color>
+    <color name="surface_highest">#212121</color>
+</resources>

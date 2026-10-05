@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/scroll"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="28dp"
+        android:paddingVertical="32dp">
+
+        <ImageView
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:layout_marginStart="-14dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_launcher_foreground"
+            app:tint="?attr/colorOnSurface" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/app_name"
+            android:textAppearance="?attr/textAppearanceDisplaySmall" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/intro_lead"
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="@color/fg80" />
+
+        <TextView
+            style="@style/Glasshouse.IntroHeading"
+            android:text="@string/intro_server_title" />
+
+        <TextView
+            style="@style/Glasshouse.IntroBody"
+            android:text="@string/intro_server" />
+
+        <TextView
+            style="@style/Glasshouse.IntroHeading"
+            android:text="@string/intro_add_title" />
+
+        <TextView
+            style="@style/Glasshouse.IntroBody"
+            android:text="@string/intro_add" />
+
+        <TextView
+            style="@style/Glasshouse.IntroHeading"
+            android:text="@string/intro_network_title" />
+
+        <TextView
+            style="@style/Glasshouse.IntroBody"
+            android:text="@string/intro_network" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:minHeight="32dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/docs"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="52dp"
+            android:text="@string/intro_docs" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:minHeight="52dp"
+            android:text="@string/intro_start" />
+    </LinearLayout>
+</ScrollView>

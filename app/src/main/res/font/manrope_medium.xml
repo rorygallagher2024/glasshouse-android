@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 26-27 ignore fontVariationSettings, so they get the dashboard's static
+     Manrope files; font-v28 has the variable font at each weight. -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font
+        android:font="@font/manrope_regular_static"
+        android:fontStyle="normal"
+        android:fontWeight="400"
+        app:font="@font/manrope_regular_static"
+        app:fontStyle="normal"
+        app:fontWeight="400" />
+</font-family>
