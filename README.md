@@ -51,6 +51,12 @@ of Android backups and phone-to-phone transfers.
 
 ## Turning a TV on
 
+> [!IMPORTANT]
+> A TV that is off can only be turned on from the phone with Wake-on-LAN
+> switched on: in the dashboard's Advanced tab under Power, or in the TV's own
+> settings as "Turn on via Wi-Fi" ("Mobile TV On" on older models). The app
+> reads the setting while the TV is on, and a TV's card says when it is off.
+
 A TV can answer while dark: in Active Standby finishing panel maintenance,
 held there by Always-on, showing Always Ready, or with its screen off. The
 list shows such a TV with the server's name for the state and a ring rather

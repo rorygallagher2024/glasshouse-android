@@ -88,6 +88,18 @@
             android:textColor="@color/fg80" />
     </LinearLayout>
 
+    <!-- The TV's Wake-on-LAN setting was off when last seen. -->
+    <TextView
+        android:id="@+id/wake_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="12dp"
+        android:text="@string/tv_wake_off"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textColor="@color/fg60"
+        android:visibility="gone" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/turn_on"
         style="?attr/materialButtonOutlinedStyle"

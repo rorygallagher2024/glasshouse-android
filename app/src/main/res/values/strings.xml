@@ -31,6 +31,7 @@
     <string name="tv_turn_on">Turn on</string>
     <string name="tv_turn_on_named">Turn on %1$s</string>
     <string name="tv_more_generic">More options</string>
+    <string name="tv_wake_off">Wake-on-LAN is off on this TV, so the phone can\'t turn it on once it\'s off. It can be switched on in the dashboard\'s Advanced tab, under Power.</string>
     <string name="lan_needed">Glasshouse needs permission to reach TVs on the local network.</string>
     <string name="lan_allow">Allow</string>
     <string name="tv_checking">Checking</string>
@@ -51,7 +52,7 @@
     <string name="dash_power_on_refused">%1$s didn\'t turn on: %2$s</string>
     <string name="dash_power_on_no_reply">the TV didn\'t reply</string>
     <string name="dash_wake_failed">%1$s didn\'t turn on.\n\nWaking a TV needs \"Turn on via Wi-Fi\" (\"Mobile TV On\" on older models) switched on in its settings, and the TV in standby rather than unplugged.</string>
-    <string name="dash_wake_setting_off">%1$s didn\'t turn on.\n\nIts \"Turn on via Wi-Fi\" setting was off when it was last seen, so it doesn\'t listen for the phone. Switch it on in the TV\'s settings, under General or Connection.</string>
+    <string name="dash_wake_setting_off">%1$s didn\'t turn on.\n\nIts Wake-on-LAN setting was off when it was last seen, so it doesn\'t listen for the phone. Once the TV is on, switch it on in the dashboard\'s Advanced tab, under Power.</string>
     <string name="dash_lan_denied">Glasshouse doesn\'t have permission to reach devices on the local network. Allow it from the TV list, or in Android\'s settings for the app.</string>
     <string name="dash_retry">Try again</string>
     <string name="dash_no_app">No app on this phone can open that link</string>
