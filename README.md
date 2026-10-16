@@ -148,13 +148,14 @@ from an edge. The only control is a back button in the strip beside the
 camera cutout, space the page could not use; on a screen without a cutout the
 strip is the button's height. Switching TVs is done from the list.
 
-On a phone the dashboard's section menu sits in the strip beside the back
-button, named after the section on screen. The dashboard hides its own menu bar
-when it finds the app's name in the user agent and a `navState` method on the
-app's JavaScript bridge, and reports through it whether its sections are a
-drawer, the section's name and whether the drawer is open; the app calls the
-page's `openNav` and `closeNav`, and Back closes an open drawer first. A
-dashboard too old to do this keeps its own bar.
+A dashboard's controls sit in a bar along the bottom, within a thumb's reach:
+TVs, back to the list, and on a phone the dashboard's own section menu, named
+after the section on screen. The dashboard hides its own menu bar when it finds
+the app's name in the user agent and a `navState` method on the app's
+JavaScript bridge, and reports through it whether its sections are a drawer,
+the section's name and whether the drawer is open; the app calls the page's
+`openNav` and `closeNav`, and Back closes an open drawer first. A dashboard too
+old to do this keeps its own bar. The bottom bar makes way for the keyboard.
 
 Pulling down at the top of a dashboard reloads it. A TV behind HTTPS with a
 certificate the phone does not trust is reported as such rather than as
