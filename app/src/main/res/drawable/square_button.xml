@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The volume row's square buttons, outlined like the dashboard's. -->
-<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/fg12">
+<!-- The volume row's square buttons, outlined like the dashboard's, with a
+     fill while pressed: a ripple alone barely shows on black. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/fg30">
     <item>
-        <shape>
-            <stroke android:width="1dp" android:color="@color/edge" />
-        </shape>
+        <selector>
+            <item android:state_pressed="true">
+                <shape>
+                    <solid android:color="@color/fg16" />
+                    <stroke android:width="1dp" android:color="@color/fg" />
+                </shape>
+            </item>
+            <item>
+                <shape>
+                    <stroke android:width="1dp" android:color="@color/edge" />
+                </shape>
+            </item>
+        </selector>
     </item>
 </ripple>

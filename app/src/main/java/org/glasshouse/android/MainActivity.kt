@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
@@ -21,8 +22,10 @@ import com.google.android.material.button.MaterialButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
@@ -141,6 +144,10 @@ class MainActivity : AppCompatActivity() {
         lanBanner = findViewById(R.id.lan_banner)
         count = findViewById(R.id.count)
         list.layoutManager = LinearLayoutManager(this)
+        // A card's state changing redraws it in place; the default cross-fade
+        // flickered every card on every round of checks.
+        (list.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+        adapter = TvAdapter().also { list.adapter = it }
         findViewById<View>(R.id.add).setOnClickListener { chooseHowToAdd() }
         findViewById<View>(R.id.lan_allow).setOnClickListener {
             bannerTapped = true
@@ -184,10 +191,11 @@ class MainActivity : AppCompatActivity() {
                 inFlight.remove(link.origin)
                 if (isDestroyed) return@post
                 val now = status.toShown()
-                shown[link.origin] = now
+                val before = shown.put(link.origin, now)
                 lastSeen.save(link.origin, now)
                 status.identity?.let { remember(tv.id, it) }
-                adapter?.statusChanged(link.origin)
+                // Redrawn only when something on the card has changed.
+                if (before != now) adapter?.statusChanged(link.origin)
                 if (status.reach == TvProbe.Reach.NO_ANSWER && tv.mac != null) refindMoved()
             }
         }
@@ -255,7 +263,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val tvs = store.all()
-        adapter = TvAdapter(tvs).also { list.adapter = it }
+        adapter?.show(tvs)
         lastSeen.keepOnly(tvs.map { it.link.origin }.toSet())
         lanBanner.visibility = if (LocalNetwork.granted(this)) View.GONE else View.VISIBLE
         // Covers a TV just added or edited; already-running probes are skipped.
@@ -442,7 +450,25 @@ class MainActivity : AppCompatActivity() {
             .putExtra(DashboardActivity.EXTRA_WAKE, wake))
     }
 
-    private inner class TvAdapter(private val tvs: List<Tv>) : RecyclerView.Adapter<TvHolder>() {
+    /**
+     * The cards. Kept for the life of the screen and handed the list again on
+     * each refresh, which redraws only when the TVs themselves have changed.
+     */
+    private inner class TvAdapter : RecyclerView.Adapter<TvHolder>() {
+        private var tvs: List<Tv> = emptyList()
+
+        fun show(next: List<Tv>) {
+            if (next == tvs) return
+            val before = tvs
+            tvs = next
+            DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = before.size
+                override fun getNewListSize() = next.size
+                override fun areItemsTheSame(o: Int, n: Int) = before[o].id == next[n].id
+                override fun areContentsTheSame(o: Int, n: Int) = before[o] == next[n]
+            }).dispatchUpdatesTo(this)
+        }
+
         override fun getItemCount() = tvs.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
@@ -454,6 +480,9 @@ class MainActivity : AppCompatActivity() {
             tvs.forEachIndexed { i, tv -> if (tv.link.origin == origin) notifyItemChanged(i) }
         }
     }
+
+    /** A light tick under the finger, so a tap on the card's controls is felt. */
+    private fun View.tap() = performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
 
     /**
      * Turns a TV on or off from its card. Turning on goes through the TV's
@@ -479,13 +508,18 @@ class MainActivity : AppCompatActivity() {
                     getString(R.string.tv_turn_off_failed, tv.name, reason.ifEmpty { getString(R.string.dash_power_on_no_reply) })
                 }
             }
+            // "Turning on" stays until the TV says it is on, not just that it was asked.
+            val settled = if (failure == null) TvPower.awaitPower(tv, on) { !isDestroyed }.toShown() else null
             main.post {
                 busy.remove(origin)
                 if (isDestroyed) return@post
                 if (failure != null) Toast.makeText(this, failure, Toast.LENGTH_LONG).show()
+                if (settled != null) {
+                    shown[origin] = settled
+                    lastSeen.save(origin, settled)
+                }
                 adapter?.statusChanged(origin)
-                // A TV going to standby takes a moment to say so.
-                main.postDelayed({ if (!isDestroyed) store.get(tv.id)?.let { check(it) } }, if (on) 500 else 3000)
+                if (settled == null) store.get(tv.id)?.let { check(it) }
             }
         }
     }
@@ -573,12 +607,15 @@ class MainActivity : AppCompatActivity() {
                 mute.setImageResource(if (showing.muted) R.drawable.ic_volume_off else R.drawable.ic_volume)
                 mute.contentDescription = getString(if (showing.muted) R.string.tv_unmute else R.string.tv_mute)
                 volumeDown.setOnClickListener {
+                    it.tap()
                     volume(tv, { it.copy(volume = maxOf(0, (it.volume ?: 0) - 1)) }) { TvProbe.volumeStep(tv.link, up = false) }
                 }
                 volumeUp.setOnClickListener {
+                    it.tap()
                     volume(tv, { it.copy(volume = minOf(100, (it.volume ?: 0) + 1)) }) { TvProbe.volumeStep(tv.link, up = true) }
                 }
                 mute.setOnClickListener {
+                    it.tap()
                     val muteNow = !showing.muted
                     volume(tv, { it.copy(muted = muteNow) }) { TvProbe.mute(tv.link, muteNow) }
                 }
@@ -610,7 +647,7 @@ class MainActivity : AppCompatActivity() {
             val reachable = state.reach != Reach.OFFLINE && busyNow == null
             openButton.isEnabled = reachable
             openButton.contentDescription = getString(R.string.tv_open_named, tv.name)
-            openButton.setOnClickListener { open(tv) }
+            openButton.setOnClickListener { it.tap(); open(tv) }
             card.setOnClickListener { open(tv) }
 
             more.contentDescription = getString(R.string.tv_more, tv.name)
@@ -638,7 +675,7 @@ class MainActivity : AppCompatActivity() {
             power.visibility = View.VISIBLE
             power.isEnabled = enabled
             power.text = getString(text)
-            power.setOnClickListener { onClick() }
+            power.setOnClickListener { it.tap(); onClick() }
         }
 
         private fun bindPart(view: TextView, text: String?) {

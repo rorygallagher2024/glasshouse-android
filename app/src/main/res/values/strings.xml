@@ -65,6 +65,7 @@
     <string name="cancel">Cancel</string>
 
     <string name="dash_back">Back to TVs</string>
+    <string name="dash_back_label">TVs</string>
     <string name="dash_menu">Sections</string>
     <string name="dash_menu_named">Sections, showing %1$s</string>
     <string name="dash_connecting">Connecting to %1$s…</string>

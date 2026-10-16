@@ -6,64 +6,12 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- The strip beside the camera cutout, which the page cannot use anyway.
-         Its height is set from the cutout. -->
-    <FrameLayout
+    <!-- The camera cutout's height, which the page cannot use; nothing on a
+         screen without one. -->
+    <View
         android:id="@+id/strip"
         android:layout_width="match_parent"
-        android:layout_height="48dp">
-
-        <ImageButton
-            android:id="@+id/back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_gravity="start|center_vertical"
-            android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/dash_back"
-            android:src="@drawable/ic_arrow_back" />
-
-        <!-- The dashboard's section menu, named after the section on screen.
-             Shown only once the page says it can be driven from here. -->
-        <LinearLayout
-            android:id="@+id/nav_menu"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:layout_gravity="start|center_vertical"
-            android:layout_marginStart="56dp"
-            android:background="?attr/selectableItemBackground"
-            android:contentDescription="@string/dash_menu"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/nav_icon"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:importantForAccessibility="no"
-                android:src="@drawable/ic_menu" />
-
-            <TextView
-                android:id="@+id/nav_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:importantForAccessibility="no"
-                android:textAppearance="@style/TextAppearance.Glasshouse.Button" />
-        </LinearLayout>
-
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/progress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:visibility="invisible"
-            app:trackColor="@android:color/transparent"
-            app:trackThickness="2dp" />
-    </FrameLayout>
+        android:layout_height="0dp" />
 
     <FrameLayout
         android:id="@+id/content"
@@ -123,4 +71,95 @@
             </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+
+    <!-- The app's controls, at the bottom where a thumb reaches them: back to
+         the TV list, and the dashboard's own section menu once the page says
+         it can be driven from here. Hidden while the keyboard is up. -->
+    <LinearLayout
+        android:id="@+id/bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="invisible"
+            app:trackColor="@android:color/transparent"
+            app:trackThickness="2dp" />
+
+        <View
+            android:id="@+id/bar_rule"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/fg12" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/back"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:contentDescription="@string/dash_back"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="20dp">
+
+                <ImageView
+                    android:id="@+id/back_icon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_arrow_back" />
+
+                <TextView
+                    android:id="@+id/back_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:importantForAccessibility="no"
+                    android:text="@string/dash_back_label"
+                    android:textAppearance="@style/TextAppearance.Glasshouse.Button" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/nav_menu"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:contentDescription="@string/dash_menu"
+                android:focusable="true"
+                android:gravity="center_vertical|end"
+                android:orientation="horizontal"
+                android:paddingHorizontal="20dp"
+                android:visibility="invisible">
+
+                <TextView
+                    android:id="@+id/nav_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="14dp"
+                    android:ellipsize="end"
+                    android:importantForAccessibility="no"
+                    android:maxLines="1"
+                    android:textAppearance="@style/TextAppearance.Glasshouse.Button" />
+
+                <ImageView
+                    android:id="@+id/nav_icon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_menu" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

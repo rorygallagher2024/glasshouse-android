@@ -57,4 +57,29 @@ object TvPower {
 
     /** Null once the TV has been asked to turn off, or the server's reason. */
     fun turnOff(tv: Tv): String? = TvProbe.powerOff(tv.link)
+
+    private const val SETTLE_TIMEOUT_MS = 25_000L
+    private const val SETTLE_POLL_MS = 1_000L
+
+    /**
+     * Asks the TV every second until it reports the power state just asked
+     * for, and returns what it last said. A TV keeps reporting Standby for a
+     * few seconds after powerOn succeeds, and On for a moment after powerOff,
+     * so one look straight after the command shows the state it is leaving.
+     */
+    fun awaitPower(tv: Tv, on: Boolean, keepGoing: () -> Boolean = { true }): TvProbe.Status {
+        val deadline = SystemClock.elapsedRealtime() + SETTLE_TIMEOUT_MS
+        var status = TvProbe.status(tv.link)
+        while (keepGoing() && SystemClock.elapsedRealtime() < deadline && isOn(status) != on) {
+            try {
+                Thread.sleep(SETTLE_POLL_MS)
+            } catch (e: InterruptedException) {
+                break
+            }
+            status = TvProbe.status(tv.link)
+        }
+        return status
+    }
+
+    private fun isOn(status: TvProbe.Status) = status.toShown().reach == Reach.ON
 }

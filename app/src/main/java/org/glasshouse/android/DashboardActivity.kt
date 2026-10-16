@@ -19,12 +19,12 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -42,7 +42,11 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tv: Tv
     private lateinit var web: WebView
     private lateinit var strip: View
-    private lateinit var back: ImageButton
+    private lateinit var bar: View
+    private lateinit var barRule: View
+    private lateinit var back: View
+    private lateinit var backIcon: ImageView
+    private lateinit var backLabel: TextView
     private lateinit var navMenu: View
     private lateinit var navIcon: ImageView
     private lateinit var navLabel: TextView
@@ -71,7 +75,7 @@ class DashboardActivity : AppCompatActivity() {
 
     /**
      * The dashboard's own menu, as the page reports it: whether its sections
-     * are a drawer at this width (so the strip shows the menu button), and
+     * are a drawer at this width (so the bar shows the menu button), and
      * whether that drawer is open (so Back closes it first).
      */
     private var navAvailable = false
@@ -117,7 +121,11 @@ class DashboardActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_dashboard)
         strip = findViewById(R.id.strip)
+        bar = findViewById(R.id.bar)
+        barRule = findViewById(R.id.bar_rule)
         back = findViewById(R.id.back)
+        backIcon = findViewById(R.id.back_icon)
+        backLabel = findViewById(R.id.back_label)
         back.setOnClickListener { finish() }
         navMenu = findViewById(R.id.nav_menu)
         navIcon = findViewById(R.id.nav_icon)
@@ -312,7 +320,7 @@ class DashboardActivity : AppCompatActivity() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
         refresh.isEnabled = true
-        navMenu.visibility = if (navAvailable) View.VISIBLE else View.GONE
+        navMenu.visibility = if (navAvailable) View.VISIBLE else View.INVISIBLE
     }
 
     private fun showStatus(text: String, canRetry: Boolean, canWake: Boolean = false) {
@@ -324,7 +332,7 @@ class DashboardActivity : AppCompatActivity() {
         // The page, and so its menu, is not on screen.
         navAvailable = false
         navOpen = false
-        navMenu.visibility = View.GONE
+        navMenu.visibility = View.INVISIBLE
         retry.visibility = if (canRetry) View.VISIBLE else View.GONE
         wakeButton.visibility = if (canWake) View.VISIBLE else View.GONE
         errorView.visibility = View.VISIBLE
@@ -360,19 +368,19 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * The strip takes the camera cutout's height, which the page could not
-     * use, so the back button costs the page nothing on a phone with one; on
-     * a screen without, it is the button's own height. The page keeps clear of
-     * the keyboard; the system bars, when swiped in, sit over it.
+     * The page keeps clear of the camera cutout, which the strip fills in the
+     * page's colour, and of the keyboard, which the bar makes way for. The
+     * system bars, when swiped in, sit over it.
      */
     private fun fitAroundCutout() {
-        val minStrip = resources.getDimensionPixelSize(R.dimen.dash_strip_min)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { _, insets ->
             val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            strip.updateLayoutParams { height = maxOf(cutout.top, minStrip) }
-            strip.updatePadding(left = cutout.left, right = cutout.right)
-            content.updatePadding(left = cutout.left, right = cutout.right, bottom = maxOf(cutout.bottom, ime.bottom))
+            val typing = insets.isVisible(WindowInsetsCompat.Type.ime())
+            strip.updateLayoutParams { height = cutout.top }
+            bar.visibility = if (typing) View.GONE else View.VISIBLE
+            bar.updatePadding(left = cutout.left, right = cutout.right, bottom = cutout.bottom)
+            content.updatePadding(left = cutout.left, right = cutout.right, bottom = if (typing) ime.bottom else 0)
             insets
         }
     }
@@ -386,8 +394,11 @@ class DashboardActivity : AppCompatActivity() {
         val fg = if (isLightColour(background)) Color.BLACK else Color.WHITE
         paintSystemBars(background)
         strip.setBackgroundColor(background)
+        bar.setBackgroundColor(background)
+        barRule.setBackgroundColor(ColorUtils.setAlphaComponent(fg, 0x1F))
         web.setBackgroundColor(background)
-        back.setColorFilter(fg)
+        backIcon.setColorFilter(fg)
+        backLabel.setTextColor(fg)
         navIcon.setColorFilter(fg)
         navLabel.setTextColor(fg)
         progress.setIndicatorColor(fg)
@@ -418,7 +429,7 @@ class DashboardActivity : AppCompatActivity() {
                 navOpen = drawer && open
                 navLabel.text = section
                 navMenu.contentDescription = getString(R.string.dash_menu_named, section)
-                if (errorView.visibility != View.VISIBLE) navMenu.visibility = if (drawer) View.VISIBLE else View.GONE
+                if (errorView.visibility != View.VISIBLE) navMenu.visibility = if (drawer) View.VISIBLE else View.INVISIBLE
             }
         }
     }

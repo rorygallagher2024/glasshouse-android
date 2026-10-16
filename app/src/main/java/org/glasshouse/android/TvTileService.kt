@@ -44,11 +44,10 @@ class TvTileService : TileService() {
         busyText = getString(if (turnOff) R.string.tv_turning_off else R.string.tv_turning_on)
         show()
         worker.execute {
-            if (turnOff) TvPower.turnOff(tv) else TvPower.turnOn(this, tv)
-            // A TV going to standby takes a moment to say so.
-            if (turnOff) Thread.sleep(3000)
+            val asked = if (turnOff) TvPower.turnOff(tv) == null else TvPower.turnOn(this, tv) == TvPower.TurnOn.On
+            last = (if (asked) TvPower.awaitPower(tv, on = !turnOff) else TvProbe.status(tv.link)).toShown()
             busyText = null
-            readState()
+            main.post { show() }
         }
     }
 
