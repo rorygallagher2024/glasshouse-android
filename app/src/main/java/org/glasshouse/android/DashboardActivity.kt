@@ -19,11 +19,12 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -41,7 +42,14 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var tv: Tv
     private lateinit var web: WebView
     private lateinit var strip: View
-    private lateinit var back: ImageButton
+    private lateinit var bar: View
+    private lateinit var barRule: View
+    private lateinit var back: View
+    private lateinit var backIcon: ImageView
+    private lateinit var backLabel: TextView
+    private lateinit var navMenu: View
+    private lateinit var navIcon: ImageView
+    private lateinit var navLabel: TextView
     private lateinit var content: View
     private lateinit var progress: LinearProgressIndicator
     private lateinit var errorView: View
@@ -64,6 +72,14 @@ class DashboardActivity : AppCompatActivity() {
      * error page, which must not replace the offline message.
      */
     private var mainFrameFailed = false
+
+    /**
+     * The dashboard's own menu, as the page reports it: whether its sections
+     * are a drawer at this width (so the bar shows the menu button), and
+     * whether that drawer is open (so Back closes it first).
+     */
+    private var navAvailable = false
+    private var navOpen = false
 
     /** When the app went to the background, to recheck the TV on return. */
     private var pausedAt = 0L
@@ -105,8 +121,16 @@ class DashboardActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_dashboard)
         strip = findViewById(R.id.strip)
+        bar = findViewById(R.id.bar)
+        barRule = findViewById(R.id.bar_rule)
         back = findViewById(R.id.back)
+        backIcon = findViewById(R.id.back_icon)
+        backLabel = findViewById(R.id.back_label)
         back.setOnClickListener { finish() }
+        navMenu = findViewById(R.id.nav_menu)
+        navIcon = findViewById(R.id.nav_icon)
+        navLabel = findViewById(R.id.nav_label)
+        navMenu.setOnClickListener { web.evaluateJavascript("openNav()", null) }
         content = findViewById(R.id.content)
         fitAroundCutout()
         goImmersive()
@@ -126,7 +150,9 @@ class DashboardActivity : AppCompatActivity() {
         paintBars(getColor(R.color.bg))
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (web.canGoBack()) {
+                if (navOpen) {
+                    web.evaluateJavascript("closeNav()", null)
+                } else if (web.canGoBack()) {
                     web.goBack()
                 } else {
                     isEnabled = false
@@ -265,51 +291,22 @@ class DashboardActivity : AppCompatActivity() {
     private fun wake() {
         val id = ++loadId
         val target = tv
-        val appContext = applicationContext
         main.removeCallbacks(loadTimeout)
         showStatus(getString(R.string.dash_waking, target.name), canRetry = false)
         showBusy()
         probes.execute {
-            if (TvProbe.check(target.link) == TvProbe.Reach.ANSWERS) {
-                val refused = TvProbe.powerOn(target.link)
-                main.post {
-                    if (id != loadId || isDestroyed) return@post
-                    if (refused == null) {
-                        load()
-                    } else {
-                        progress.visibility = View.INVISIBLE
-                        val reason = refused.ifEmpty { getString(R.string.dash_power_on_no_reply) }
-                        showStatus(getString(R.string.dash_power_on_refused, target.name, reason), canRetry = true, canWake = true)
-                    }
-                }
-                return@execute
-            }
-            val mac = target.mac
-            if (mac == null) {
-                main.post { if (id == loadId && !isDestroyed) showError() }
-                return@execute
-            }
-            val deadline = SystemClock.elapsedRealtime() + WAKE_TIMEOUT_MS
-            var nextSend = 0L
-            var answered = false
-            while (!answered && id == loadId && SystemClock.elapsedRealtime() < deadline) {
-                val now = SystemClock.elapsedRealtime()
-                if (now >= nextSend) {
-                    WakeOnLan.send(appContext, mac, target.link.host)
-                    nextSend = now + WAKE_RESEND_MS
-                }
-                answered = TvProbe.check(target.link) == TvProbe.Reach.ANSWERS
-                if (!answered) {
-                    try {
-                        Thread.sleep(WAKE_POLL_MS)
-                    } catch (e: InterruptedException) {
-                        return@execute
-                    }
-                }
-            }
+            val result = TvPower.turnOn(this, target) { id == loadId }
             main.post {
                 if (id != loadId || isDestroyed) return@post
-                if (answered) load() else showWakeFailed()
+                when (result) {
+                    TvPower.TurnOn.On -> load()
+                    is TvPower.TurnOn.Refused -> {
+                        progress.visibility = View.INVISIBLE
+                        val reason = result.reason.ifEmpty { getString(R.string.dash_power_on_no_reply) }
+                        showStatus(getString(R.string.dash_power_on_refused, target.name, reason), canRetry = true, canWake = true)
+                    }
+                    TvPower.TurnOn.NoAnswer -> if (target.mac == null) showError() else showWakeFailed()
+                }
             }
         }
     }
@@ -323,6 +320,7 @@ class DashboardActivity : AppCompatActivity() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
         refresh.isEnabled = true
+        navMenu.visibility = if (navAvailable) View.VISIBLE else View.INVISIBLE
     }
 
     private fun showStatus(text: String, canRetry: Boolean, canWake: Boolean = false) {
@@ -331,6 +329,10 @@ class DashboardActivity : AppCompatActivity() {
         refresh.isRefreshing = false
         refresh.isEnabled = false
         errorText.text = text
+        // The page, and so its menu, is not on screen.
+        navAvailable = false
+        navOpen = false
+        navMenu.visibility = View.INVISIBLE
         retry.visibility = if (canRetry) View.VISIBLE else View.GONE
         wakeButton.visibility = if (canWake) View.VISIBLE else View.GONE
         errorView.visibility = View.VISIBLE
@@ -366,19 +368,19 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * The strip takes the camera cutout's height, which the page could not
-     * use, so the back button costs the page nothing on a phone with one; on
-     * a screen without, it is the button's own height. The page keeps clear of
-     * the keyboard; the system bars, when swiped in, sit over it.
+     * The page keeps clear of the camera cutout, which the strip fills in the
+     * page's colour, and of the keyboard, which the bar makes way for. The
+     * system bars, when swiped in, sit over it.
      */
     private fun fitAroundCutout() {
-        val minStrip = resources.getDimensionPixelSize(R.dimen.dash_strip_min)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root)) { _, insets ->
             val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            strip.updateLayoutParams { height = maxOf(cutout.top, minStrip) }
-            strip.updatePadding(left = cutout.left, right = cutout.right)
-            content.updatePadding(left = cutout.left, right = cutout.right, bottom = maxOf(cutout.bottom, ime.bottom))
+            val typing = insets.isVisible(WindowInsetsCompat.Type.ime())
+            strip.updateLayoutParams { height = cutout.top }
+            bar.visibility = if (typing) View.GONE else View.VISIBLE
+            bar.updatePadding(left = cutout.left, right = cutout.right, bottom = cutout.bottom)
+            content.updatePadding(left = cutout.left, right = cutout.right, bottom = if (typing) ime.bottom else 0)
             insets
         }
     }
@@ -392,8 +394,13 @@ class DashboardActivity : AppCompatActivity() {
         val fg = if (isLightColour(background)) Color.BLACK else Color.WHITE
         paintSystemBars(background)
         strip.setBackgroundColor(background)
+        bar.setBackgroundColor(background)
+        barRule.setBackgroundColor(ColorUtils.setAlphaComponent(fg, 0x1F))
         web.setBackgroundColor(background)
-        back.setColorFilter(fg)
+        backIcon.setColorFilter(fg)
+        backLabel.setTextColor(fg)
+        navIcon.setColorFilter(fg)
+        navLabel.setTextColor(fg)
         progress.setIndicatorColor(fg)
         refresh.setColorSchemeColors(fg)
         refresh.setProgressBackgroundColorSchemeColor(background)
@@ -406,6 +413,23 @@ class DashboardActivity : AppCompatActivity() {
             val colour = CssColour.parse(css) ?: return
             runOnUiThread {
                 if (!isDestroyed && errorView.visibility != View.VISIBLE) paintBars(colour)
+            }
+        }
+
+        /**
+         * The dashboard's menu: whether its sections are a drawer at this
+         * width, the section on screen, and whether the drawer is open. A
+         * dashboard too old to send this keeps its own menu bar in the page.
+         */
+        @JavascriptInterface
+        fun navState(drawer: Boolean, section: String, open: Boolean) {
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                navAvailable = drawer
+                navOpen = drawer && open
+                navLabel.text = section
+                navMenu.contentDescription = getString(R.string.dash_menu_named, section)
+                if (errorView.visibility != View.VISIBLE) navMenu.visibility = if (drawer) View.VISIBLE else View.INVISIBLE
             }
         }
     }
@@ -476,9 +500,6 @@ class DashboardActivity : AppCompatActivity() {
         private const val RESUME_CHECK_MS = 5_000L
         private const val RECHECK_MS = 30_000L
 
-        private const val WAKE_TIMEOUT_MS = 60_000L
-        private const val WAKE_RESEND_MS = 5_000L
-        private const val WAKE_POLL_MS = 1_000L
 
         /** For a server that answered the probe but then stalls on the page. */
         private const val PAGE_TIMEOUT_MS = 15_000L

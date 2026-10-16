@@ -1,6 +1,6 @@
 # Glasshouse for Android
 
-A phone app for [Glasshouse](https://github.com/rorygallagher2024/lg-webos-dashboard),
+A phone app for [Glasshouse](https://github.com/rorygallagher2024/glasshouse),
 the dashboard for rooted LG webOS TVs. It keeps a list of TVs and opens each
 one's web dashboard full screen. The dashboard itself is the same page a browser gets;
 the app adds the list with each TV's online status, turning a TV on, and the
@@ -8,7 +8,7 @@ file picker the sideload tab needs. It runs on Android 10 and later.
 
 On first launch an introduction explains that the TV needs the Glasshouse
 server installed, with a link to the
-[installation guide](https://rorygallagher2024.github.io/lg-webos-dashboard/install/).
+[installation guide](https://rorygallagher2024.github.io/glasshouse/install/).
 The About screen links to the source, the documentation and the
 [privacy policy](PRIVACY.md).
 
@@ -48,6 +48,21 @@ the same. A fixed address for the TV on the router avoids the move altogether.
 
 The list, tokens included, stays in the app's private storage and is left out
 of Android backups and phone-to-phone transfers.
+
+## The TV list
+
+Each TV is a card: its model number, the name given to it, its power state,
+and, while it is on, what is on screen and its volume, with the remote's volume
+steps and mute. Every card has Turn on or Turn off, which works from the list
+without opening the dashboard, and Open dashboard. Turning off is the remote's
+power key, through the server's `powerOff`.
+
+The list opens on each TV's last state seen, faint until the TV answers again,
+and pulling it down asks every TV at once rather than waiting for the next
+round, every 15 seconds.
+
+A Quick Settings tile turns one TV on and off: the one chosen with Use for
+Quick Settings tile in its card's menu, or the only one.
 
 ## Turning a TV on
 
@@ -132,6 +147,15 @@ A TV's dashboard is full screen: the system bars are hidden until swiped in
 from an edge. The only control is a back button in the strip beside the
 camera cutout, space the page could not use; on a screen without a cutout the
 strip is the button's height. Switching TVs is done from the list.
+
+A dashboard's controls sit in a bar along the bottom, within a thumb's reach:
+TVs, back to the list, and on a phone the dashboard's own section menu, named
+after the section on screen. The dashboard hides its own menu bar when it finds
+the app's name in the user agent and a `navState` method on the app's
+JavaScript bridge, and reports through it whether its sections are a drawer,
+the section's name and whether the drawer is open; the app calls the page's
+`openNav` and `closeNav`, and Back closes an open drawer first. A dashboard too
+old to do this keeps its own bar. The bottom bar makes way for the keyboard.
 
 Pulling down at the top of a dashboard reloads it. A TV behind HTTPS with a
 certificate the phone does not trust is reported as such rather than as

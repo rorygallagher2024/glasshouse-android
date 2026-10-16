@@ -30,8 +30,17 @@ object TvProbe {
         val model: String? = null,
     )
 
-    /** What is on screen: the input or app, SDR or an HDR format, and picture mode. */
-    data class Showing(val source: String?, val range: String?, val picture: String?)
+    /**
+     * What is on screen: the input or app, SDR or an HDR format, and picture
+     * mode; and the volume, for the card's quick controls.
+     */
+    data class Showing(
+        val source: String?,
+        val range: String?,
+        val picture: String?,
+        val volume: Int? = null,
+        val muted: Boolean = false,
+    )
 
     /**
      * The server's power state. A TV can answer while dark: Active Standby
@@ -83,14 +92,30 @@ object TvProbe {
      * covers Active Standby, Always-on and Screen off. Null on success, or the
      * server's reason, such as power actions being off in its config.
      */
-    fun powerOn(link: TvLink): String? {
+    fun powerOn(link: TvLink): String? = control(link, "powerOn")
+
+    /** The remote's power key: standby, or Active Standby while the panel is cared for. */
+    fun powerOff(link: TvLink): String? = control(link, "powerOff")
+
+    /** One step of the remote's volume key, which also reaches a receiver on ARC. */
+    fun volumeStep(link: TvLink, up: Boolean): String? = control(link, "volumeStep", if (up) 1 else -1)
+
+    fun mute(link: TvLink, muted: Boolean): String? = control(link, "mute", muted)
+
+    /**
+     * One of the dashboard's controls. Null on success, or the server's
+     * reason; empty when the TV gave none.
+     */
+    private fun control(link: TvLink, action: String, value: Any? = null): String? {
         val conn = open("${link.origin}/api/control${tokenQuery(link)}", CONTROL_TIMEOUT_MS) ?: return ""
         return try {
             conn.requestMethod = "POST"
             conn.doOutput = true
             // The server takes JSON only, and refuses a foreign Origin; none is sent.
             conn.setRequestProperty("Content-Type", "application/json")
-            conn.outputStream.use { it.write("""{"action":"powerOn"}""".toByteArray()) }
+            val request = JSONObject().put("action", action)
+            if (value != null) request.put("value", value)
+            conn.outputStream.use { it.write(request.toString().toByteArray()) }
             val code = conn.responseCode
             val body = (if (code < 400) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -158,6 +183,8 @@ object TvProbe {
             source = stats.optString("app_name").ifEmpty { null },
             range = picture?.optString("dynamicRange").orEmpty().ifEmpty { null },
             picture = picture?.optString("mode").orEmpty().ifEmpty { null },
+            volume = if (stats.has("volume")) stats.optInt("volume") else null,
+            muted = stats.optBoolean("muted"),
         )
         return showing.takeIf { it.source != null || it.range != null || it.picture != null }
     }

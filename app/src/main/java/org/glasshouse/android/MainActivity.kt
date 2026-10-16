@@ -10,18 +10,22 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.button.MaterialButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
@@ -40,13 +44,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var count: TextView
     private var adapter: TvAdapter? = null
 
-    private enum class Reach { CHECKING, ON, ASLEEP, ONLINE, OFFLINE, UNTRUSTED_CERT }
+    private lateinit var listRefresh: SwipeRefreshLayout
+    private lateinit var lastSeen: LastSeen
 
-    /**
-     * A TV's state as shown; [label] is the server's name for a dark TV's
-     * state, and [showing] what is on screen while it is on.
-     */
-    private data class Shown(val reach: Reach, val label: String? = null, val showing: TvProbe.Showing? = null)
+    /** A power command under way on a TV, by origin; its card says so meanwhile. */
+    private enum class Busy { TURNING_ON, TURNING_OFF }
+    private val busy = mutableMapOf<String, Busy>()
+
+    /** Power and volume run apart from the probes: waking a TV can take a minute. */
+    private val commands = Executors.newFixedThreadPool(2)
 
     /**
      * Last probe result by origin, not id, so an edited address starts over
@@ -128,11 +134,20 @@ class MainActivity : AppCompatActivity() {
         padForSystemBars(findViewById(R.id.appbar), findViewById(R.id.content))
 
         store = TvStore(this)
+        lastSeen = LastSeen(this)
+        // Opens on each TV's last state seen, dimmed until it answers again.
+        shown.putAll(lastSeen.all())
         list = findViewById(R.id.list)
+        listRefresh = findViewById(R.id.list_refresh)
+        listRefresh.setOnRefreshListener { checkAll(); stopRefreshWhenDone() }
         empty = findViewById(R.id.empty)
         lanBanner = findViewById(R.id.lan_banner)
         count = findViewById(R.id.count)
         list.layoutManager = LinearLayoutManager(this)
+        // A card's state changing redraws it in place; the default cross-fade
+        // flickered every card on every round of checks.
+        (list.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+        adapter = TvAdapter().also { list.adapter = it }
         findViewById<View>(R.id.add).setOnClickListener { chooseHowToAdd() }
         findViewById<View>(R.id.lan_allow).setOnClickListener {
             bannerTapped = true
@@ -157,37 +172,42 @@ class MainActivity : AppCompatActivity() {
         main.removeCallbacks(recheck)
         probes.shutdownNow()
         searches.shutdownNow()
+        commands.shutdownNow()
         super.onDestroy()
     }
 
     private fun checkAll() {
         if (!LocalNetwork.granted(this)) return
-        for (tv in store.all()) {
-            val link = tv.link
-            // A probe gives up within 8 seconds, but one stuck in DNS can outlast a round.
-            if (!inFlight.add(link.origin)) continue
-            probes.execute {
-                val status = TvProbe.status(link)
-                main.post {
-                    inFlight.remove(link.origin)
-                    if (isDestroyed) return@post
-                    val power = status.power
-                    shown[link.origin] = when (status.reach) {
-                        // Without stats (a wrong token, say) the power state is unknown.
-                        TvProbe.Reach.ANSWERS -> when {
-                            power == null -> Shown(Reach.ONLINE)
-                            power.on -> Shown(Reach.ON, showing = status.showing)
-                            else -> Shown(Reach.ASLEEP, power.label)
-                        }
-                        TvProbe.Reach.NO_ANSWER -> Shown(Reach.OFFLINE)
-                        TvProbe.Reach.UNTRUSTED_CERT -> Shown(Reach.UNTRUSTED_CERT)
-                    }
-                    status.identity?.let { remember(tv.id, it) }
-                    adapter?.statusChanged(link.origin)
-                    if (status.reach == TvProbe.Reach.NO_ANSWER && tv.mac != null) refindMoved()
-                }
+        for (tv in store.all()) check(tv)
+    }
+
+    private fun check(tv: Tv) {
+        val link = tv.link
+        // A probe gives up within 8 seconds, but one stuck in DNS can outlast a round.
+        if (!inFlight.add(link.origin)) return
+        probes.execute {
+            val status = TvProbe.status(link)
+            main.post {
+                inFlight.remove(link.origin)
+                if (isDestroyed) return@post
+                val now = status.toShown()
+                val before = shown.put(link.origin, now)
+                lastSeen.save(link.origin, now)
+                status.identity?.let { remember(tv.id, it) }
+                // Redrawn only when something on the card has changed.
+                if (before != now) adapter?.statusChanged(link.origin)
+                if (status.reach == TvProbe.Reach.NO_ANSWER && tv.mac != null) refindMoved()
             }
         }
+    }
+
+    /** Ends the pull-to-refresh spinner once every probe now running has answered. */
+    private fun stopRefreshWhenDone() {
+        if (inFlight.isEmpty() || isDestroyed) {
+            listRefresh.isRefreshing = false
+            return
+        }
+        main.postDelayed({ stopRefreshWhenDone() }, 250)
     }
 
     /**
@@ -243,7 +263,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val tvs = store.all()
-        adapter = TvAdapter(tvs).also { list.adapter = it }
+        adapter?.show(tvs)
+        lastSeen.keepOnly(tvs.map { it.link.origin }.toSet())
         lanBanner.visibility = if (LocalNetwork.granted(this)) View.GONE else View.VISIBLE
         // Covers a TV just added or edited; already-running probes are skipped.
         checkAll()
@@ -429,7 +450,25 @@ class MainActivity : AppCompatActivity() {
             .putExtra(DashboardActivity.EXTRA_WAKE, wake))
     }
 
-    private inner class TvAdapter(private val tvs: List<Tv>) : RecyclerView.Adapter<TvHolder>() {
+    /**
+     * The cards. Kept for the life of the screen and handed the list again on
+     * each refresh, which redraws only when the TVs themselves have changed.
+     */
+    private inner class TvAdapter : RecyclerView.Adapter<TvHolder>() {
+        private var tvs: List<Tv> = emptyList()
+
+        fun show(next: List<Tv>) {
+            if (next == tvs) return
+            val before = tvs
+            tvs = next
+            DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = before.size
+                override fun getNewListSize() = next.size
+                override fun areItemsTheSame(o: Int, n: Int) = before[o].id == next[n].id
+                override fun areContentsTheSame(o: Int, n: Int) = before[o] == next[n]
+            }).dispatchUpdatesTo(this)
+        }
+
         override fun getItemCount() = tvs.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
@@ -442,6 +481,69 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** A light tick under the finger, so a tap on the card's controls is felt. */
+    private fun View.tap() = performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+
+    /**
+     * Turns a TV on or off from its card. Turning on goes through the TV's
+     * server when it answers, else Wake-on-LAN; the card says "Turning on"
+     * meanwhile, and the TV is asked again once it is done.
+     */
+    private fun setPower(tv: Tv, on: Boolean) {
+        val origin = tv.link.origin
+        if (busy.containsKey(origin)) return
+        busy[origin] = if (on) Busy.TURNING_ON else Busy.TURNING_OFF
+        adapter?.statusChanged(origin)
+        commands.execute {
+            val failure: String? = if (on) {
+                when (val r = TvPower.turnOn(this, tv) { !isDestroyed }) {
+                    TvPower.TurnOn.On -> null
+                    is TvPower.TurnOn.Refused -> getString(R.string.tv_turn_on_failed, tv.name,
+                        r.reason.ifEmpty { getString(R.string.dash_power_on_no_reply) })
+                    TvPower.TurnOn.NoAnswer -> getString(
+                        if (tv.wakeOnLan == false) R.string.tv_wake_failed_setting else R.string.tv_wake_failed, tv.name)
+                }
+            } else {
+                TvPower.turnOff(tv)?.let { reason ->
+                    getString(R.string.tv_turn_off_failed, tv.name, reason.ifEmpty { getString(R.string.dash_power_on_no_reply) })
+                }
+            }
+            // "Turning on" stays until the TV says it is on, not just that it was asked.
+            val settled = if (failure == null) TvPower.awaitPower(tv, on) { !isDestroyed }.toShown() else null
+            main.post {
+                busy.remove(origin)
+                if (isDestroyed) return@post
+                if (failure != null) Toast.makeText(this, failure, Toast.LENGTH_LONG).show()
+                if (settled != null) {
+                    shown[origin] = settled
+                    lastSeen.save(origin, settled)
+                }
+                adapter?.statusChanged(origin)
+                if (settled == null) store.get(tv.id)?.let { check(it) }
+            }
+        }
+    }
+
+    /** A volume step or mute, shown at once and corrected by the TV's next answer. */
+    private fun volume(tv: Tv, change: (TvProbe.Showing) -> TvProbe.Showing, send: () -> String?) {
+        val origin = tv.link.origin
+        val before = shown[origin] ?: return
+        val showing = before.showing ?: return
+        shown[origin] = before.copy(showing = change(showing))
+        adapter?.statusChanged(origin)
+        commands.execute {
+            val problem = send()
+            main.post {
+                if (isDestroyed) return@post
+                if (problem != null) {
+                    Toast.makeText(this, getString(R.string.tv_volume_failed, tv.name,
+                        problem.ifEmpty { getString(R.string.dash_power_on_no_reply) }), Toast.LENGTH_LONG).show()
+                }
+                store.get(tv.id)?.let { check(it) }
+            }
+        }
+    }
+
     private inner class TvHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val card = view.findViewById<View>(R.id.card)
         private val model = view.findViewById<TextView>(R.id.model)
@@ -451,13 +553,20 @@ class MainActivity : AppCompatActivity() {
         private val source = view.findViewById<TextView>(R.id.source)
         private val range = view.findViewById<TextView>(R.id.range)
         private val picture = view.findViewById<TextView>(R.id.picture)
-        private val turnOn = view.findViewById<MaterialButton>(R.id.turn_on)
+        private val volumeRow = view.findViewById<View>(R.id.volume_row)
+        private val volumeLevel = view.findViewById<TextView>(R.id.volume_level)
+        private val volumeDown = view.findViewById<ImageButton>(R.id.volume_down)
+        private val volumeUp = view.findViewById<ImageButton>(R.id.volume_up)
+        private val mute = view.findViewById<ImageButton>(R.id.mute)
         private val wakeNote = view.findViewById<TextView>(R.id.wake_note)
+        private val power = view.findViewById<MaterialButton>(R.id.power)
+        private val openButton = view.findViewById<MaterialButton>(R.id.open)
         private val address = view.findViewById<TextView>(R.id.address)
         private val more = view.findViewById<ImageButton>(R.id.more)
 
         fun bind(tv: Tv) {
             val state = shown[tv.link.origin] ?: Shown(Reach.CHECKING)
+            val busyNow = busy[tv.link.origin]
             model.text = tv.model.orEmpty()
             name.text = tv.name
             address.text = tv.link.label
@@ -479,9 +588,11 @@ class MainActivity : AppCompatActivity() {
             pill.setBackgroundResource(frame)
             pill.setTextColor(getColor(colour))
             pill.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, 0, 0, 0)
+            // Recalled from last time: shown, but faint until the TV answers.
+            pill.alpha = if (state.stale) 0.45f else 1f
             name.setTextColor(getColor(if (state.reach == Reach.OFFLINE) R.color.fg50 else R.color.fg))
 
-            val showing = state.showing
+            val showing = state.showing.takeIf { state.reach == Reach.ON }
             showingRow.visibility = if (showing != null) View.VISIBLE else View.GONE
             if (showing != null) {
                 bindPart(source, showing.source)
@@ -489,32 +600,82 @@ class MainActivity : AppCompatActivity() {
                 bindPart(picture, showing.picture)
             }
 
-            // A dark TV that answers is turned on by its server; one that does
-            // not, by Wake-on-LAN, which needs its MAC and the TV's own setting
-            // on. That setting is shown while it is off, on or offline alike:
-            // it can only be switched on while the TV is on.
+            val volume = showing?.volume
+            volumeRow.visibility = if (volume != null && busyNow == null) View.VISIBLE else View.GONE
+            if (volume != null) {
+                volumeLevel.text = if (showing.muted) getString(R.string.tv_volume_muted) else getString(R.string.tv_volume_level, volume)
+                mute.setImageResource(if (showing.muted) R.drawable.ic_volume_off else R.drawable.ic_volume)
+                mute.contentDescription = getString(if (showing.muted) R.string.tv_unmute else R.string.tv_mute)
+                volumeDown.setOnClickListener {
+                    it.tap()
+                    volume(tv, { it.copy(volume = maxOf(0, (it.volume ?: 0) - 1)) }) { TvProbe.volumeStep(tv.link, up = false) }
+                }
+                volumeUp.setOnClickListener {
+                    it.tap()
+                    volume(tv, { it.copy(volume = minOf(100, (it.volume ?: 0) + 1)) }) { TvProbe.volumeStep(tv.link, up = true) }
+                }
+                mute.setOnClickListener {
+                    it.tap()
+                    val muteNow = !showing.muted
+                    volume(tv, { it.copy(muted = muteNow) }) { TvProbe.mute(tv.link, muteNow) }
+                }
+            }
+
+            // Wake-on-LAN's setting is shown whatever the state: it can only be
+            // switched on while the TV is on.
             val wakeOff = tv.wakeOnLan == false
             wakeNote.visibility = if (wakeOff) View.VISIBLE else View.GONE
-            val canTurnOn = state.reach == Reach.ASLEEP ||
-                (state.reach == Reach.OFFLINE && tv.mac != null && !wakeOff)
-            turnOn.visibility = if (canTurnOn) View.VISIBLE else View.GONE
-            turnOn.contentDescription = getString(R.string.tv_turn_on_named, tv.name)
-            turnOn.setOnClickListener { open(tv, wake = true) }
 
+            // On turns off; a dark TV that answers is turned on by its server;
+            // one that does not, by Wake-on-LAN, which needs its MAC and the
+            // TV's setting on. A TV whose power state is not known gets neither.
+            val canWake = tv.mac != null && !wakeOff
+            when {
+                busyNow != null -> {
+                    power.visibility = View.VISIBLE
+                    power.isEnabled = false
+                    power.text = getString(if (busyNow == Busy.TURNING_ON) R.string.tv_turning_on else R.string.tv_turning_off)
+                }
+                state.reach == Reach.ON -> showPower(R.string.tv_turn_off, enabled = true) { setPower(tv, on = false) }
+                state.reach == Reach.ASLEEP -> showPower(R.string.tv_turn_on, enabled = true) { setPower(tv, on = true) }
+                state.reach == Reach.OFFLINE -> showPower(R.string.tv_turn_on, enabled = canWake) { setPower(tv, on = true) }
+                else -> power.visibility = View.GONE
+            }
+            power.contentDescription = getString(R.string.tv_power_named, power.text, tv.name)
+
+            // An offline TV's dashboard has nothing to show.
+            val reachable = state.reach != Reach.OFFLINE && busyNow == null
+            openButton.isEnabled = reachable
+            openButton.contentDescription = getString(R.string.tv_open_named, tv.name)
+            openButton.setOnClickListener { it.tap(); open(tv) }
             card.setOnClickListener { open(tv) }
+
             more.contentDescription = getString(R.string.tv_more, tv.name)
             more.setOnClickListener {
                 val menu = PopupMenu(this@MainActivity, more)
                 menu.inflate(R.menu.tv_item)
+                menu.menu.findItem(R.id.action_tile).isChecked = TileChoice.tv(this@MainActivity)?.id == tv.id
                 menu.setOnMenuItemClickListener { item ->
                     when (item.itemId) {
                         R.id.action_edit -> editTv(tv, null, null)
+                        R.id.action_tile -> {
+                            TileChoice.choose(this@MainActivity, tv)
+                            TvTileService.refresh(this@MainActivity)
+                            Toast.makeText(this@MainActivity, getString(R.string.tv_tile_chosen, tv.name), Toast.LENGTH_SHORT).show()
+                        }
                         R.id.action_remove -> confirmRemove(tv)
                     }
                     true
                 }
                 menu.show()
             }
+        }
+
+        private fun showPower(text: Int, enabled: Boolean, onClick: () -> Unit) {
+            power.visibility = View.VISIBLE
+            power.isEnabled = enabled
+            power.text = getString(text)
+            power.setOnClickListener { it.tap(); onClick() }
         }
 
         private fun bindPart(view: TextView, text: String?) {

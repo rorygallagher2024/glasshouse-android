@@ -11,6 +11,9 @@ TV's MAC address and Wake-on-LAN setting as the TV reports them, and, where the
 TV has one, its dashboard access token. The list is held in the app's private
 storage, is excluded from Android backups and from transfers to a new phone,
 and is deleted when a TV is removed from the list or the app is uninstalled.
+Beside it the app keeps each TV's last state seen (on, standby or offline, what
+was on screen and the volume) to show when it next opens, stored and deleted
+the same way.
 
 ## Network
 
