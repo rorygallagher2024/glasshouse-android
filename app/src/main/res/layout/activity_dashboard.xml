@@ -23,6 +23,38 @@
             android:contentDescription="@string/dash_back"
             android:src="@drawable/ic_arrow_back" />
 
+        <!-- The dashboard's section menu, named after the section on screen.
+             Shown only once the page says it can be driven from here. -->
+        <LinearLayout
+            android:id="@+id/nav_menu"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="56dp"
+            android:background="?attr/selectableItemBackground"
+            android:contentDescription="@string/dash_menu"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/nav_icon"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_menu" />
+
+            <TextView
+                android:id="@+id/nav_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:importantForAccessibility="no"
+                android:textAppearance="@style/TextAppearance.Glasshouse.Button" />
+        </LinearLayout>
+
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/progress"
             android:layout_width="match_parent"
