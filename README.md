@@ -6,6 +6,8 @@ one's web dashboard full screen. The dashboard itself is the same page a browser
 the app adds the list with each TV's online status, turning a TV on, and the
 file picker the sideload tab needs. It runs on Android 10 and later.
 
+It is on [Google Play](https://play.google.com/store/apps/details?id=org.glasshouse.android).
+
 On first launch an introduction explains that the TV needs the Glasshouse
 server installed, with a link to the
 [installation guide](https://rorygallagher2024.github.io/glasshouse/install/).
