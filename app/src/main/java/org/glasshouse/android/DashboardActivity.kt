@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
@@ -21,6 +22,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -34,6 +36,7 @@ import androidx.core.view.updatePadding
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /** One TV's web dashboard, full screen, with a way back to the list of TVs. */
 class DashboardActivity : AppCompatActivity() {
@@ -59,6 +62,24 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var refresh: SwipeRefreshLayout
 
     private val probes = Executors.newSingleThreadExecutor()
+
+    /** The TV's volume steps from the phone's keys, in order and apart from the probes. */
+    private val steps = Executors.newSingleThreadExecutor()
+    private val stepsInFlight = AtomicInteger()
+    private val volumeKeys = VolumeKeys()
+
+    /** When a failed volume step was last reported, so a held key gives one message. */
+    private var stepFailedAt = 0L
+
+    /** Opened from the card's Remote: the dashboard's remote view alone. */
+    private var remoteView = false
+
+    /**
+     * Whether the page says its remote is on screen, as the dashboard's modal
+     * or on its own. Cleared by each new page; a dashboard too old to say so
+     * is judged by its address instead.
+     */
+    private var remoteOpen = false
     private val main = Handler(Looper.getMainLooper())
 
     /**
@@ -118,6 +139,7 @@ class DashboardActivity : AppCompatActivity() {
             return
         }
         tv = saved
+        remoteView = intent.getBooleanExtra(EXTRA_REMOTE, false)
 
         setContentView(R.layout.activity_dashboard)
         strip = findViewById(R.id.strip)
@@ -174,7 +196,8 @@ class DashboardActivity : AppCompatActivity() {
             // Lets the dashboard tell it is in the app, should it need to.
             userAgentString = "$userAgentString Glasshouse-Android/${BuildConfig.VERSION_NAME}"
         }
-        // Only the TV's own pages load here, and all this can do is recolour the bars.
+        // Only the TV's own pages load here, and all this can do is recolour
+        // the bars, follow the page's menu, and hand the volume keys to its remote.
         web.addJavascriptInterface(PageBridge(), "GlasshouseApp")
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -186,6 +209,7 @@ class DashboardActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 mainFrameFailed = false
+                remoteOpen = false
                 progress.visibility = View.VISIBLE
             }
 
@@ -196,6 +220,12 @@ class DashboardActivity : AppCompatActivity() {
                 if (mainFrameFailed) return
                 showPage()
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
+            }
+
+            // The remote's address can come and go without a new page, through
+            // the dashboard's own history.
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                followRemote()
             }
 
             override fun onPageFinished(view: WebView, url: String?) {
@@ -272,7 +302,7 @@ class DashboardActivity : AppCompatActivity() {
                     TvProbe.Reach.ANSWERS -> {
                         progress.visibility = View.INVISIBLE
                         progress.isIndeterminate = false
-                        web.loadUrl(target.link.dashboardUrl())
+                        web.loadUrl(if (remoteView) target.link.remoteUrl() else target.link.dashboardUrl())
                         main.postDelayed(loadTimeout, PAGE_TIMEOUT_MS)
                     }
                     TvProbe.Reach.NO_ANSWER -> showError()
@@ -319,7 +349,7 @@ class DashboardActivity : AppCompatActivity() {
     private fun showPage() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
-        refresh.isEnabled = true
+        followRemote()
         navMenu.visibility = if (navAvailable) View.VISIBLE else View.INVISIBLE
     }
 
@@ -432,6 +462,77 @@ class DashboardActivity : AppCompatActivity() {
                 if (errorView.visibility != View.VISIBLE) navMenu.visibility = if (drawer) View.VISIBLE else View.INVISIBLE
             }
         }
+
+        /**
+         * The dashboard's remote opening or closing, as a modal or as its own
+         * page: while open, the phone's volume keys step the TV's volume.
+         */
+        @JavascriptInterface
+        fun remoteState(open: Boolean) {
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                remoteOpen = open
+                followRemote()
+            }
+        }
+    }
+
+    /**
+     * The remote is on screen: the page said so, or its address is the
+     * remote's. Only while the page itself is showing, not the offline message.
+     */
+    private fun remoteShowing(): Boolean =
+        ::web.isInitialized && web.visibility == View.VISIBLE &&
+            (remoteOpen || TvLink.isRemoteUrl(web.url))
+
+    /**
+     * Pull-to-refresh is off while the remote is on screen: a downward drag
+     * on its touchpad, with the page at the top, would otherwise be taken
+     * from the page and reload it. Back on when the remote closes.
+     */
+    private fun followRemote() {
+        if (web.visibility == View.VISIBLE) refresh.isEnabled = !remoteShowing()
+    }
+
+    /**
+     * While the remote is on screen the phone's volume keys step the TV's
+     * volume, as the card's buttons do; otherwise they are the phone's own.
+     * Handled here, before the WebView sees them.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val up = when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> true
+            KeyEvent.KEYCODE_VOLUME_DOWN -> false
+            else -> return super.dispatchKeyEvent(event)
+        }
+        if (!remoteShowing()) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            volumeKeys.shouldStep(event.repeatCount, event.eventTime, stepsInFlight.get())) {
+            stepVolume(up)
+        }
+        // The key's release is swallowed too, so the phone shows no volume panel.
+        return true
+    }
+
+    private fun stepVolume(up: Boolean) {
+        val target = tv
+        stepsInFlight.incrementAndGet()
+        steps.execute {
+            val problem = try {
+                TvProbe.volumeStep(target.link, up)
+            } finally {
+                stepsInFlight.decrementAndGet()
+            }
+            if (problem == null) return@execute
+            main.post {
+                if (isDestroyed) return@post
+                val now = SystemClock.elapsedRealtime()
+                if (now - stepFailedAt < STEP_FAILED_QUIET_MS) return@post
+                stepFailedAt = now
+                Toast.makeText(this, getString(R.string.tv_volume_failed, target.name,
+                    problem.ifEmpty { getString(R.string.dash_power_on_no_reply) }), Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -487,6 +588,7 @@ class DashboardActivity : AppCompatActivity() {
         main.removeCallbacks(loadTimeout)
         main.removeCallbacks(recheck)
         probes.shutdownNow()
+        steps.shutdownNow()
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }
@@ -496,6 +598,12 @@ class DashboardActivity : AppCompatActivity() {
 
         /** Set by the list's power button: wake the TV rather than just connect. */
         const val EXTRA_WAKE = "wake"
+
+        /** Set by the card's Remote: open on the dashboard's remote alone. */
+        const val EXTRA_REMOTE = "remote"
+
+        /** One message for a run of failed volume steps, not one per step. */
+        private const val STEP_FAILED_QUIET_MS = 3_000L
 
         private const val RESUME_CHECK_MS = 5_000L
         private const val RECHECK_MS = 30_000L

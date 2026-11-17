@@ -57,7 +57,9 @@ Each TV is a card: its model number, the name given to it, its power state,
 and, while it is on, what is on screen and its volume, with the remote's volume
 steps and mute. Every card has Turn on or Turn off, which works from the list
 without opening the dashboard, and Open dashboard. Turning off is the remote's
-power key, through the server's `powerOff`.
+power key, through the server's `powerOff`. A TV that answers also has a
+Remote button under its volume, which opens the dashboard's remote on its own
+(`?view=remote`): playback, volume, the D-pad, the pointer and the keyboard.
 
 The list opens on each TV's last state seen, faint until the TV answers again,
 and pulling it down asks every TV at once rather than waiting for the next
@@ -158,6 +160,17 @@ JavaScript bridge, and reports through it whether its sections are a drawer,
 the section's name and whether the drawer is open; the app calls the page's
 `openNav` and `closeNav`, and Back closes an open drawer first. A dashboard too
 old to do this keeps its own bar. The bottom bar makes way for the keyboard.
+
+While the dashboard's remote is on screen, on its own or in the dashboard's
+Remote modal, the phone's volume keys step the TV's volume through the
+server's `volumeStep`, as the card's buttons do: one step a press, and about
+six a second while held. The page says when its remote opens and closes with
+`remoteState(open)` on the app's bridge; for a dashboard that does not, an
+address with `view=remote` counts. Otherwise the keys are the phone's own.
+Pull-to-refresh is off while the remote is showing, so a downward drag on its
+touchpad stays with the page instead of reloading it. The
+app holds the `VIBRATE` permission so the remote's `navigator.vibrate` buzz on
+each press works in the WebView.
 
 Pulling down at the top of a dashboard reloads it. A TV behind HTTPS with a
 certificate the phone does not trust is reported as such rather than as

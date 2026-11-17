@@ -444,10 +444,11 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun open(tv: Tv, wake: Boolean = false) {
+    private fun open(tv: Tv, wake: Boolean = false, remote: Boolean = false) {
         startActivity(Intent(this, DashboardActivity::class.java)
             .putExtra(DashboardActivity.EXTRA_TV_ID, tv.id)
-            .putExtra(DashboardActivity.EXTRA_WAKE, wake))
+            .putExtra(DashboardActivity.EXTRA_WAKE, wake)
+            .putExtra(DashboardActivity.EXTRA_REMOTE, remote))
     }
 
     /**
@@ -563,6 +564,7 @@ class MainActivity : AppCompatActivity() {
         private val openButton = view.findViewById<MaterialButton>(R.id.open)
         private val address = view.findViewById<TextView>(R.id.address)
         private val more = view.findViewById<ImageButton>(R.id.more)
+        private val remote = view.findViewById<MaterialButton>(R.id.remote)
 
         fun bind(tv: Tv) {
             val state = shown[tv.link.origin] ?: Shown(Reach.CHECKING)
@@ -649,6 +651,12 @@ class MainActivity : AppCompatActivity() {
             openButton.contentDescription = getString(R.string.tv_open_named, tv.name)
             openButton.setOnClickListener { it.tap(); open(tv) }
             card.setOnClickListener { open(tv) }
+
+            // The remote needs a TV that answers: on, or dark but awake.
+            val answers = busyNow == null && state.reach in setOf(Reach.ON, Reach.ONLINE, Reach.ASLEEP)
+            remote.visibility = if (answers) View.VISIBLE else View.GONE
+            remote.contentDescription = getString(R.string.tv_remote_named, tv.name)
+            remote.setOnClickListener { it.tap(); open(tv, remote = true) }
 
             more.contentDescription = getString(R.string.tv_more, tv.name)
             more.setOnClickListener {

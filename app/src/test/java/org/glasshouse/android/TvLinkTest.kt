@@ -1,7 +1,9 @@
 package org.glasshouse.android
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TvLinkTest {
@@ -53,6 +55,24 @@ class TvLinkTest {
     fun dashboardUrlCarriesTheToken() {
         assertEquals("http://h:8080/", TvLink("http://h:8080", "").dashboardUrl())
         assertEquals("http://h:8080/?k=a%2Bb", TvLink("http://h:8080", "a+b").dashboardUrl())
+    }
+
+    @Test
+    fun remoteUrlNamesTheViewAndCarriesTheToken() {
+        assertEquals("http://h:8080/?view=remote", TvLink("http://h:8080", "").remoteUrl())
+        assertEquals("http://h:8080/?view=remote&k=a%2Bb", TvLink("http://h:8080", "a+b").remoteUrl())
+    }
+
+    @Test
+    fun remoteUrlIsRecognised() {
+        assertTrue(TvLink.isRemoteUrl("http://h:8080/?view=remote"))
+        assertTrue(TvLink.isRemoteUrl("http://h:8080/?view=remote&embed=1"))
+        assertTrue(TvLink.isRemoteUrl("http://h:8080/?k=x&view=remote"))
+        assertFalse(TvLink.isRemoteUrl("http://h:8080/"))
+        assertFalse(TvLink.isRemoteUrl("http://h:8080/?view=remotes"))
+        assertFalse(TvLink.isRemoteUrl("http://h:8080/?tab=remote"))
+        assertFalse(TvLink.isRemoteUrl(null))
+        assertFalse(TvLink.isRemoteUrl("not a url at all"))
     }
 
     @Test

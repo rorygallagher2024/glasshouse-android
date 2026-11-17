@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Android 17: needed to reach anything on the LAN, which is every TV. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- The dashboard's remote buzzes on each press, through navigator.vibrate. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- The scanner asks for the camera itself; a phone without one can still
          add a TV by address. -->
