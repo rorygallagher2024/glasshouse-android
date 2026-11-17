@@ -28,6 +28,8 @@
     <string name="tv_count">Televisions · %1$d</string>
     <string name="tv_open">Open dashboard</string>
     <string name="tv_open_named">Open the dashboard of %1$s</string>
+    <string name="tv_remote">Remote</string>
+    <string name="tv_remote_named">Open the remote of %1$s</string>
     <string name="tv_turn_off">Turn off</string>
     <string name="tv_turning_on">Turning on…</string>
     <string name="tv_turning_off">Turning off…</string>

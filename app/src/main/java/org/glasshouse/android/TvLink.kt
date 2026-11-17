@@ -19,14 +19,36 @@ data class TvLink(val origin: String, val token: String) {
 
     /**
      * The dashboard page. The token goes in `k`, which the dashboard keeps in
-     * its own storage and takes back out of the address bar.
+     * its own storage and takes back out of the address bar. With [view]
+     * set, the page opens on that view alone, such as the remote.
      */
-    fun dashboardUrl(): String =
-        if (token.isEmpty()) "$origin/" else "$origin/?k=" + URLEncoder.encode(token, "UTF-8")
+    fun dashboardUrl(view: String? = null): String {
+        val query = buildList {
+            if (view != null) add("view=" + URLEncoder.encode(view, "UTF-8"))
+            if (token.isNotEmpty()) add("k=" + URLEncoder.encode(token, "UTF-8"))
+        }
+        return if (query.isEmpty()) "$origin/" else "$origin/?" + query.joinToString("&")
+    }
+
+    /** The dashboard's remote alone: playback, volume, the D-pad, the pointer and the keyboard. */
+    fun remoteUrl(): String = dashboardUrl(VIEW_REMOTE)
 
     companion object {
         /** The server's default port; config.json's `port`. */
         const val DEFAULT_PORT = 8080
+
+        /** The dashboard's `view` for its remote. */
+        const val VIEW_REMOTE = "remote"
+
+        /**
+         * Whether a page address shows the dashboard's remote: `view=remote`,
+         * on its own page or embedded in the dashboard's modal.
+         */
+        fun isRemoteUrl(url: String?): Boolean {
+            if (url.isNullOrEmpty()) return false
+            val uri = try { URI(url) } catch (e: URISyntaxException) { return false }
+            return queryParam(uri.rawQuery, "view") == VIEW_REMOTE
+        }
 
         /**
          * Parses a scanned QR code or a typed address. The TV's QR codes are
