@@ -128,7 +128,15 @@ The `release` workflow does the same on GitHub, from the secrets
 Pushing a tag `v<versionName>` builds the bundle and an APK (named
 `-sideload.apk`) and attaches both
 to a GitHub release; the tag must match `versionName`, and `versionCode` must
-go up with every upload to Play. Running the workflow by hand builds the same
+go up with every upload to Play. The release notes are the tag's message,
+written for people using the app, followed by a line on Google Play and the
+sideload APK:
+
+```bash
+git tag -a v0.7.0 -m "**Headline.** What changed, in a sentence or two."
+```
+
+A tag without a message gets GitHub's list of merged PRs instead. Running the workflow by hand builds the same
 files as an artifact without a release.
 
 ## Store listing
