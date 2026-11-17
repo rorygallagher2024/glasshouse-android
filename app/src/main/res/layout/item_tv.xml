@@ -147,6 +147,23 @@
             android:src="@drawable/ic_plus" />
     </LinearLayout>
 
+    <!-- The dashboard's remote on its own, while the TV answers: with the
+         volume above, the card's way of working the TV. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/remote"
+        style="?attr/materialButtonOutlinedStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
+        android:minHeight="48dp"
+        android:text="@string/tv_remote"
+        android:visibility="gone"
+        app:icon="@drawable/ic_remote"
+        app:iconGravity="textStart"
+        app:iconPadding="8dp"
+        app:iconSize="18dp" />
+
     <!-- Power, and the dashboard: in every state, so neither needs hunting for. -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -194,18 +211,6 @@
             android:fontFeatureSettings="tnum"
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="@color/fg50" />
-
-        <!-- The dashboard's remote alone, while the TV answers. -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/remote"
-            style="?attr/borderlessButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:minWidth="0dp"
-            android:paddingHorizontal="12dp"
-            android:text="@string/tv_remote"
-            android:textColor="@color/fg80"
-            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/more"

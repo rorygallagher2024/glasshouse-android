@@ -57,8 +57,8 @@ Each TV is a card: its model number, the name given to it, its power state,
 and, while it is on, what is on screen and its volume, with the remote's volume
 steps and mute. Every card has Turn on or Turn off, which works from the list
 without opening the dashboard, and Open dashboard. Turning off is the remote's
-power key, through the server's `powerOff`. A TV that answers also has Remote,
-on the card and in its menu, which opens the dashboard's remote on its own
+power key, through the server's `powerOff`. A TV that answers also has a
+Remote button under its volume, which opens the dashboard's remote on its own
 (`?view=remote`): playback, volume, the D-pad, the pointer and the keyboard.
 
 The list opens on each TV's last state seen, faint until the TV answers again,

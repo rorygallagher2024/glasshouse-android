@@ -662,11 +662,9 @@ class MainActivity : AppCompatActivity() {
             more.setOnClickListener {
                 val menu = PopupMenu(this@MainActivity, more)
                 menu.inflate(R.menu.tv_item)
-                menu.menu.findItem(R.id.action_remote).isVisible = answers
                 menu.menu.findItem(R.id.action_tile).isChecked = TileChoice.tv(this@MainActivity)?.id == tv.id
                 menu.setOnMenuItemClickListener { item ->
                     when (item.itemId) {
-                        R.id.action_remote -> open(tv, remote = true)
                         R.id.action_edit -> editTv(tv, null, null)
                         R.id.action_tile -> {
                             TileChoice.choose(this@MainActivity, tv)
