@@ -65,16 +65,27 @@ jobs:
           name: glasshouse-release
           path: dist/*
 
-      # Play re-signs what it delivers with its own key, so the APK here and
-      # the Play install cannot update each other; the notes say so.
+      # What's new comes from the tag's own message (git tag -a v1.2.3 -m
+      # "..."), followed by where to get the app. A tag without a message
+      # gets GitHub's list of merged PRs instead. Play re-signs what it
+      # delivers with its own key, so the APK here and the Play install
+      # cannot update each other; the footer says so.
       - name: GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
-          NOTES: >-
-            The app is on Google Play; the README says how to join the test.
-            The `-sideload.apk` is for installing without Play. It is signed
-            with a different key from the Play version, so neither can update
-            the other: switching between them means uninstalling, which clears
-            the saved TVs. The `.aab` is the bundle uploaded to Play.
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes "$NOTES" --generate-notes
+        run: |
+          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME")
+          message=""
+          if [ "$(echo "$ref" | jq -r .object.type)" = tag ]; then
+            message=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(echo "$ref" | jq -r .object.sha)" --jq .message)
+          fi
+          # A bare "git tag -a v1.2.3 -m v1.2.3" says nothing new.
+          if [ "$(echo "$message" | tr -d '[:space:]')" = "$GITHUB_REF_NAME" ]; then message=""; fi
+          {
+            if [ -n "$message" ]; then printf '%s\n\n' "$message"; fi
+            echo "Get it on [Google Play](https://play.google.com/store/apps/details?id=org.glasshouse.android). The \`-sideload.apk\` is for installing without Play; it can't update a Play install, or the other way round."
+          } > "$RUNNER_TEMP/notes.md"
+          generate=""
+          [ -n "$message" ] || generate=--generate-notes
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" $generate
