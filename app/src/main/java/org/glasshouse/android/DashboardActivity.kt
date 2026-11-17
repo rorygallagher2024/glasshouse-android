@@ -222,6 +222,12 @@ class DashboardActivity : AppCompatActivity() {
                 view.evaluateJavascript(WATCH_BACKGROUND, null)
             }
 
+            // The remote's address can come and go without a new page, through
+            // the dashboard's own history.
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                followRemote()
+            }
+
             override fun onPageFinished(view: WebView, url: String?) {
                 progress.visibility = View.INVISIBLE
                 refresh.isRefreshing = false
@@ -343,7 +349,7 @@ class DashboardActivity : AppCompatActivity() {
     private fun showPage() {
         errorView.visibility = View.GONE
         web.visibility = View.VISIBLE
-        refresh.isEnabled = true
+        followRemote()
         navMenu.visibility = if (navAvailable) View.VISIBLE else View.INVISIBLE
     }
 
@@ -464,7 +470,9 @@ class DashboardActivity : AppCompatActivity() {
         @JavascriptInterface
         fun remoteState(open: Boolean) {
             runOnUiThread {
-                if (!isDestroyed) remoteOpen = open
+                if (isDestroyed) return@runOnUiThread
+                remoteOpen = open
+                followRemote()
             }
         }
     }
@@ -476,6 +484,15 @@ class DashboardActivity : AppCompatActivity() {
     private fun remoteShowing(): Boolean =
         ::web.isInitialized && web.visibility == View.VISIBLE &&
             (remoteOpen || TvLink.isRemoteUrl(web.url))
+
+    /**
+     * Pull-to-refresh is off while the remote is on screen: a downward drag
+     * on its touchpad, with the page at the top, would otherwise be taken
+     * from the page and reload it. Back on when the remote closes.
+     */
+    private fun followRemote() {
+        if (web.visibility == View.VISIBLE) refresh.isEnabled = !remoteShowing()
+    }
 
     /**
      * While the remote is on screen the phone's volume keys step the TV's

@@ -166,7 +166,9 @@ Remote modal, the phone's volume keys step the TV's volume through the
 server's `volumeStep`, as the card's buttons do: one step a press, and about
 six a second while held. The page says when its remote opens and closes with
 `remoteState(open)` on the app's bridge; for a dashboard that does not, an
-address with `view=remote` counts. Otherwise the keys are the phone's own. The
+address with `view=remote` counts. Otherwise the keys are the phone's own.
+Pull-to-refresh is off while the remote is showing, so a downward drag on its
+touchpad stays with the page instead of reloading it. The
 app holds the `VIBRATE` permission so the remote's `navigator.vibrate` buzz on
 each press works in the WebView.
 
