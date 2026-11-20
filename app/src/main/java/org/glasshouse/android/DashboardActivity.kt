@@ -67,6 +67,7 @@ class DashboardActivity : AppCompatActivity() {
     private val steps = Executors.newSingleThreadExecutor()
     private val stepsInFlight = AtomicInteger()
     private val volumeKeys = VolumeKeys()
+    private val motion by lazy { MotionSensor(this) }
 
     /** When a failed volume step was last reported, so a held key gives one message. */
     private var stepFailedAt = 0L
@@ -197,7 +198,8 @@ class DashboardActivity : AppCompatActivity() {
             userAgentString = "$userAgentString Glasshouse-Android/${BuildConfig.VERSION_NAME}"
         }
         // Only the TV's own pages load here, and all this can do is recolour
-        // the bars, follow the page's menu, and hand the volume keys to its remote.
+        // the bars, follow the page's menu, hand the volume keys to its remote,
+        // and give its Motion pad the phone's turning while the pad is held.
         web.addJavascriptInterface(PageBridge(), "GlasshouseApp")
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -475,6 +477,20 @@ class DashboardActivity : AppCompatActivity() {
                 followRemote()
             }
         }
+
+        /** The remote's Motion pad: only where the phone has a gyroscope. */
+        @JavascriptInterface
+        fun motionAvailable(): Boolean = motion.available
+
+        @JavascriptInterface
+        fun motionStart() = motion.start()
+
+        @JavascriptInterface
+        fun motionStop() = motion.stop()
+
+        /** "yaw,pitch": radians turned left and tilted up since the last read. */
+        @JavascriptInterface
+        fun motionRead(): String = motion.turn.take()
     }
 
     /**
@@ -554,6 +570,7 @@ class DashboardActivity : AppCompatActivity() {
 
     override fun onPause() {
         main.removeCallbacks(recheck)
+        motion.stop()
         if (::web.isInitialized) {
             web.onPause()
             web.pauseTimers()
@@ -589,6 +606,7 @@ class DashboardActivity : AppCompatActivity() {
         main.removeCallbacks(recheck)
         probes.shutdownNow()
         steps.shutdownNow()
+        motion.stop()
         if (::web.isInitialized) web.destroy()
         super.onDestroy()
     }

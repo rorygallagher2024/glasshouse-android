@@ -180,6 +180,15 @@ touchpad stays with the page instead of reloading it. The
 app holds the `VIBRATE` permission so the remote's `navigator.vibrate` buzz on
 each press works in the WebView.
 
+The remote's Motion pad moves the TV's cursor as the phone is pointed, as a
+Magic Remote does. Browsers give a page the motion sensors only over https,
+and the dashboard is served over http, so the app reads them instead: the
+gyroscope and gravity sensors run only while the pad is held, between the
+page's `motionStart()` and `motionStop()`, and `motionRead()` answers the
+radians turned left (about the vertical, as gravity has it) and tilted up
+since the last read. `motionAvailable()` is false on a phone without a
+gyroscope, and the dashboard then leaves Motion out.
+
 Pulling down at the top of a dashboard reloads it. A TV behind HTTPS with a
 certificate the phone does not trust is reported as such rather than as
 offline; the page is never loaded past a certificate error, since it would
